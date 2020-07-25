@@ -1,7 +1,22 @@
-from config import get_arguments
-from SinGAN.manipulate import *
-from SinGAN.training import *
+import os
+import logging
+
+from SinGAN.manipulate import SinGAN_generate, get_arguments
+from SinGAN.training import train
 import SinGAN.functions as functions
+
+logger = logging.getLogger()
+
+
+def _configure_logger(dir2save):
+    logger.setLevel(logging.INFO)
+    formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s', datefmt='%H:%M:%S')
+    file_handler = logging.FileHandler(os.path.join(dir2save, "train.log"))
+    stream_handler = logging.StreamHandler()
+    file_handler.setFormatter(formatter)
+    stream_handler.setFormatter(formatter)
+    logger.addHandler(file_handler)
+    logger.addHandler(stream_handler)
 
 
 if __name__ == '__main__':
@@ -24,8 +39,10 @@ if __name__ == '__main__':
             os.makedirs(dir2save)
         except OSError:
             pass
+        _configure_logger(dir2save)
+
         real = functions.read_image(opt)
         functions.adjust_scales2image(real, opt)
         train(opt, Gs, Zs, reals, NoiseAmp)
-        print("Done training")
+        logger.info("Done training")
         SinGAN_generate(Gs,Zs,reals,NoiseAmp,opt)

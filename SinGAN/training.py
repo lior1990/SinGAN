@@ -1,3 +1,5 @@
+import logging
+
 import SinGAN.functions as functions
 import SinGAN.models as models
 import os
@@ -8,7 +10,12 @@ import math
 import matplotlib.pyplot as plt
 from SinGAN.imresize import imresize
 
+logger = logging.getLogger()
+
+
 def train(opt,Gs,Zs,reals,NoiseAmp):
+    logger.info("Starting to train...")
+
     real_ = functions.read_image(opt)
     in_s = 0
     scale_num = 0
@@ -36,7 +43,9 @@ def train(opt,Gs,Zs,reals,NoiseAmp):
             G_curr.load_state_dict(torch.load('%s/%d/netG.pth' % (opt.out_,scale_num-1)))
             D_curr.load_state_dict(torch.load('%s/%d/netD.pth' % (opt.out_,scale_num-1)))
 
+        logger.info(f"Starting to train scale {scale_num}...")
         z_curr,in_s,G_curr = train_single_scale(D_curr,G_curr,reals,Gs,Zs,in_s,NoiseAmp,opt)
+        logger.info(f"Done training scale {scale_num}")
 
         G_curr = functions.reset_grads(G_curr,False)
         G_curr.eval()
@@ -197,7 +206,7 @@ def train_single_scale(netD,netG,reals,Gs,Zs,in_s,NoiseAmp,opt,centers=None):
         z_opt2plot.append(rec_loss)
 
         if epoch % 25 == 0 or epoch == (opt.niter-1):
-            print('scale %d:[%d/%d]' % (len(Gs), epoch, opt.niter))
+            logger.info('scale %d:[%d/%d]' % (len(Gs), epoch, opt.niter))
 
         if epoch % 500 == 0 or epoch == (opt.niter-1):
             plt.imsave('%s/fake_sample.png' %  (opt.outf), functions.convert_image_np(fake.detach()), vmin=0, vmax=1)
@@ -310,13 +319,13 @@ def init_models(opt):
     netG.apply(models.weights_init)
     if opt.netG != '':
         netG.load_state_dict(torch.load(opt.netG))
-    print(netG)
+    logger.info(netG)
 
     #discriminator initialization:
     netD = models.WDiscriminator(opt).to(opt.device)
     netD.apply(models.weights_init)
     if opt.netD != '':
         netD.load_state_dict(torch.load(opt.netD))
-    print(netD)
+    logger.info(netD)
 
     return netD, netG
