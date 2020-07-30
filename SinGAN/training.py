@@ -177,11 +177,11 @@ def train_single_scale(netD1, netD2,netG,reals1, reals2,Gs,Zs,in_s1, in_s2,Noise
                 z_prev2 = new_z_prev2
 
             # Z1 only:
-            mixed_noise1 = torch.cat((noise1, torch.zeros(noise1.shape)))
+            mixed_noise1 = torch.cat((noise1, torch.zeros(noise1.shape, device=opt.device)))
             D1_G_z, errD1_fake, gradient_penalty1, fake1 = _train_discriminator_with_fake(netD1, netG, mixed_noise1, opt, prev1, real1)
 
             # Z2 only:
-            mixed_noise2 = torch.cat((torch.zeros(noise2.shape), noise2))
+            mixed_noise2 = torch.cat((torch.zeros(noise2.shape, device=opt.device), noise2))
             D2_G_z, errD2_fake, gradient_penalty2, fake2 = _train_discriminator_with_fake(netD2, netG, mixed_noise2, opt, prev2,
                                                                                    real2)
 
@@ -375,10 +375,10 @@ def draw_concat(Gs,Zs,reals,NoiseAmp,in_s,mode,m_noise,m_image,opt, noise_mode: 
             for G,(Z_opt1, Z_opt2),real_curr,real_next,noise_amp in zip(Gs,Zs,reals,reals[1:],NoiseAmp):
                 if noise_mode == NoiseMode.Z1:
                     z1 = _create_noise_for_draw_concat(opt, count, pad_noise, m_noise, Z_opt1)
-                    z2 = torch.zeros(z1.shape)
+                    z2 = torch.zeros(z1.shape, device=opt.device)
                 elif noise_mode == NoiseMode.Z2:
                     z2 = _create_noise_for_draw_concat(opt, count, pad_noise, m_noise, Z_opt2)
-                    z1 = torch.zeros(z2.shape)
+                    z1 = torch.zeros(z2.shape, device=opt.device)
                 elif noise_mode == NoiseMode.MIXED:
                     z1 = _create_noise_for_draw_concat(opt, count, pad_noise, m_noise, Z_opt1)
                     z2 = _create_noise_for_draw_concat(opt, count, pad_noise, m_noise, Z_opt2)
