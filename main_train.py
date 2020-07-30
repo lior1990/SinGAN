@@ -1,5 +1,6 @@
 import os
 import logging
+from typing import List, Tuple
 
 from SinGAN.manipulate import SinGAN_generate, get_arguments
 from SinGAN.training import train
@@ -22,13 +23,15 @@ def _configure_logger(dir2save):
 if __name__ == '__main__':
     parser = get_arguments()
     parser.add_argument('--input_dir', help='input image dir', default='Input/Images')
-    parser.add_argument('--input_name', help='input image name', required=True)
+    parser.add_argument('--input_name1', help='input image name 1', required=True)
+    parser.add_argument('--input_name2', help='input image name 2', required=True)
     parser.add_argument('--mode', help='task to be done', default='train')
     opt = parser.parse_args()
     opt = functions.post_config(opt)
     Gs = []
-    Zs = []
-    reals = []
+    Zs: List[Tuple] = []
+    reals1 = []
+    reals2 = []
     NoiseAmp = []
     dir2save = functions.generate_dir2save(opt)
 
@@ -41,8 +44,10 @@ if __name__ == '__main__':
             pass
         _configure_logger(dir2save)
 
-        real = functions.read_image(opt)
-        functions.adjust_scales2image(real, opt)
-        train(opt, Gs, Zs, reals, NoiseAmp)
+        real1 = functions.read_image(opt, image_name=opt.input_name1)
+        real2 = functions.read_image(opt, image_name=opt.input_name2)
+        functions.adjust_scales2image(real1, opt)
+        functions.adjust_scales2image(real2, opt)
+        train(opt, Gs, Zs, reals1, reals2, NoiseAmp)
         logger.info("Done training")
-        SinGAN_generate(Gs,Zs,reals,NoiseAmp,opt)
+        SinGAN_generate(Gs,Zs,reals1, reals2,NoiseAmp,opt)

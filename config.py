@@ -9,7 +9,8 @@ def get_arguments():
     
     #load, input, save configurations:
     parser.add_argument('--netG', default='', help="path to netG (to continue training)")
-    parser.add_argument('--netD', default='', help="path to netD (to continue training)")
+    parser.add_argument('--netD1', default='', help="path to netD (to continue training)")
+    parser.add_argument('--netD2', default='', help="path to netD (to continue training)")
     parser.add_argument('--manualSeed', type=int, help='manual seed')
     parser.add_argument('--nc_z',type=int,help='noise # channels',default=3)
     parser.add_argument('--nc_im',type=int,help='image # channels',default=3)
@@ -40,5 +41,17 @@ def get_arguments():
     parser.add_argument('--lambda_grad',type=float, help='gradient penelty weight',default=0.1)
     parser.add_argument('--alpha',type=float, help='reconstruction loss weight',default=10)
 
+    # New parameters:
+    parser.add_argument("--mixed_imgs_starting_scale", type=int, default=3,
+                        help="When training with 2 images:"
+                             "choose the starting scale where we start to generate mixed images in the training")
+    # we might want to give different regularization loss for one image over the other,
+    # if one has more strong characteristics we want to preserve (like background)
+    parser.add_argument("--D_img1_regularization_loss", type=float, default=2,
+                        help="When training with 2 images:"
+                             "regularization loss for the discriminator of the first image")
+    parser.add_argument("--D_img2_regularization_loss", type=float, default=1,
+                        help="When training with 2 images:"
+                             "regularization loss for the discriminator of the second image")
     
     return parser

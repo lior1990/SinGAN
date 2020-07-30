@@ -54,10 +54,11 @@ class GeneratorConcatSkip2CleanAdd(nn.Module):
             nn.Conv2d(max(N,opt.min_nfc),opt.nc_im,kernel_size=opt.ker_size,stride =1,padding=opt.padd_size),
             nn.Tanh()
         )
-    def forward(self,x,y):
-        x = self.head(x)
-        x = self.body(x)
-        x = self.tail(x)
-        ind = int((y.shape[2]-x.shape[2])/2)
-        y = y[:,:,ind:(y.shape[2]-ind),ind:(y.shape[3]-ind)]
-        return x+y
+
+    def forward(self, noise, prev):
+        noise = self.head(noise)
+        noise = self.body(noise)
+        noise = self.tail(noise)
+        ind = int((prev.shape[2]-noise.shape[2])/2)
+        prev = prev[:,:,ind:(prev.shape[2]-ind),ind:(prev.shape[3]-ind)]
+        return noise+prev

@@ -17,9 +17,6 @@ from sklearn.cluster import KMeans
 
 # custom weights initialization called on netG and netD
 
-def read_image(opt):
-    x = img.imread('%s%s' % (opt.input_img,opt.ref_image))
-    return np2torch(x)
 
 def denorm(x):
     out = (x + 1) / 2
@@ -146,8 +143,8 @@ def calc_gradient_penalty(netD, real_data, fake_data, LAMBDA, device):
     gradient_penalty = ((gradients.norm(2, dim=1) - 1) ** 2).mean() * LAMBDA
     return gradient_penalty
 
-def read_image(opt):
-    x = img.imread('%s/%s' % (opt.input_dir,opt.input_name))
+def read_image(opt, image_name):
+    x = img.imread('%s/%s' % (opt.input_dir,image_name))
     x = np2torch(x,opt)
     x = x[:,0:3,:,:]
     return x
@@ -187,10 +184,12 @@ def read_image2np(opt):
     x = x[:, :, 0:3]
     return x
 
-def save_networks(netG,netD,z,opt):
+def save_networks(netG,netD1, netD2,z1, z2,opt):
     torch.save(netG.state_dict(), '%s/netG.pth' % (opt.outf))
-    torch.save(netD.state_dict(), '%s/netD.pth' % (opt.outf))
-    torch.save(z, '%s/z_opt.pth' % (opt.outf))
+    torch.save(netD1.state_dict(), '%s/netD1.pth' % (opt.outf))
+    torch.save(netD2.state_dict(), '%s/netD2.pth' % (opt.outf))
+    torch.save(z1, '%s/z_opt1.pth' % (opt.outf))
+    torch.save(z2, '%s/z_opt2.pth' % (opt.outf))
 
 def adjust_scales2image(real_,opt):
     #opt.num_scales = int((math.log(math.pow(opt.min_size / (real_.shape[2]), 1), opt.scale_factor_init))) + 1
@@ -255,16 +254,18 @@ def generate_in2coarsest(reals,scale_v,scale_h,opt):
 
 def generate_dir2save(opt):
     dir2save = None
+    dir_name = f"{opt.input_name1[:-4]}_{opt.input_name2[:-4]}"
+
     if (opt.mode == 'train') | (opt.mode == 'SR_train'):
-        dir2save = 'TrainedModels/%s/scale_factor=%f,alpha=%d' % (opt.input_name[:-4], opt.scale_factor_init,opt.alpha)
+        dir2save = 'TrainedModels/%s/scale_factor=%f,alpha=%d' % (dir_name, opt.scale_factor_init,opt.alpha)
     elif (opt.mode == 'animation_train') :
         dir2save = 'TrainedModels/%s/scale_factor=%f_noise_padding' % (opt.input_name[:-4], opt.scale_factor_init)
     elif (opt.mode == 'paint_train') :
         dir2save = 'TrainedModels/%s/scale_factor=%f_paint/start_scale=%d' % (opt.input_name[:-4], opt.scale_factor_init,opt.paint_start_scale)
     elif opt.mode == 'random_samples':
-        dir2save = '%s/RandomSamples/%s/gen_start_scale=%d' % (opt.out,opt.input_name[:-4], opt.gen_start_scale)
+        dir2save = '%s/RandomSamples/%s/gen_start_scale=%d' % (opt.out,dir_name, opt.gen_start_scale)
     elif opt.mode == 'random_samples_arbitrary_sizes':
-        dir2save = '%s/RandomSamples_ArbitrerySizes/%s/scale_v=%f_scale_h=%f' % (opt.out,opt.input_name[:-4], opt.scale_v, opt.scale_h)
+        dir2save = '%s/RandomSamples_ArbitrerySizes/%s/scale_v=%f_scale_h=%f' % (opt.out,dir_name, opt.scale_v, opt.scale_h)
     elif opt.mode == 'animation':
         dir2save = '%s/Animation/%s' % (opt.out, opt.input_name[:-4])
     elif opt.mode == 'SR':
@@ -287,7 +288,8 @@ def post_config(opt):
     opt.nfc_init = opt.nfc
     opt.min_nfc_init = opt.min_nfc
     opt.scale_factor_init = opt.scale_factor
-    opt.out_ = 'TrainedModels/%s/scale_factor=%f/' % (opt.input_name[:-4], opt.scale_factor)
+    dir_name = f"{opt.input_name1[:-4]}_{opt.input_name2[:-4]}"
+    opt.out_ = 'TrainedModels/%s/scale_factor=%f/' % (dir_name, opt.scale_factor)
     if opt.mode == 'SR':
         opt.alpha = 100
 
