@@ -222,8 +222,8 @@ def train_single_scale(netD1, netD2,netG,reals1, reals2,Gs,Zs,in_s1, in_s2,Noise
             netG.zero_grad()
             errG1 = _generator_train_with_fake(fake1, netD1)
             errG2 = _generator_train_with_fake(fake2, netD2)
-            rec_loss1, Z_opt1 = _reconstruction_loss(alpha, netG, opt, z_opt1, z_prev1, real1)
-            rec_loss2, Z_opt2 = _reconstruction_loss(alpha, netG, opt, z_opt2, z_prev2, real2)
+            rec_loss1, Z_opt1 = _reconstruction_loss(alpha, netG, opt, z_opt1, z_prev1, real1, NoiseMode.Z1)
+            rec_loss2, Z_opt2 = _reconstruction_loss(alpha, netG, opt, z_opt2, z_prev2, real2, NoiseMode.Z2)
 
             if mixed_imgs_training:
                 output1 = netD1(mixed_fake)
@@ -312,11 +312,20 @@ def _generator_train_with_fake(fake, netD):
     return errG
 
 
-def _reconstruction_loss(alpha, netG, opt, z_opt, z_prev, real):
+def _reconstruction_loss(alpha, netG, opt, z_opt, z_prev, real, noise_mode: NoiseMode):
     if alpha != 0:
         # reconstruction loss calculation
         loss = nn.MSELoss()
         Z_opt = opt.noise_amp * z_opt + z_prev
+        z_zero = torch.zeros(Z_opt.shape, device=opt.device)
+
+        if noise_mode.Z1:
+            Z_opt = _merge_noise_vectors(Z_opt, z_zero, opt.noise_vectors_merge_method)
+        elif noise_mode.Z2:
+            Z_opt = _merge_noise_vectors(z_zero, Z_opt, opt.noise_vectors_merge_method)
+        else:
+            raise NotImplementedError
+
         rec_loss = alpha * loss(netG(Z_opt.detach(), z_prev), real)
         rec_loss.backward(retain_graph=True)
         rec_loss = rec_loss.detach()
