@@ -122,6 +122,7 @@ def train_single_scale(netD1, netD2,netG,reals1, reals2,Gs,Zs,in_s1, in_s2,Noise
 
     err_D1_2plot = []
     err_D2_2plot = []
+    errG_total_loss_2plot = []
     errG_total_loss1_2plot = []
     errG_total_loss2_2plot = []
     errG_fake1_2plot = []
@@ -131,7 +132,7 @@ def train_single_scale(netD1, netD2,netG,reals1, reals2,Gs,Zs,in_s1, in_s2,Noise
     D2_real2plot = []
     D1_fake2plot = []
     D2_fake2plot = []
-    D_mixed_fake2plot = []
+    errD_mixed_fake2plot = []
     reconstruction_loss1_2plot = []
     reconstruction_loss2_2plot = []
 
@@ -234,9 +235,12 @@ def train_single_scale(netD1, netD2,netG,reals1, reals2,Gs,Zs,in_s1, in_s2,Noise
         errG_total_loss2_2plot.append(errG2.detach()+rec_loss2)
         errG_fake1_2plot.append(errG1.detach())
         errG_fake2_2plot.append(errG1.detach())
+        G_total_loss = errG1.detach()+rec_loss1 + errG2.detach()+rec_loss2
         if mixed_imgs_training:
             errG_mixed_fake_2plot.append(errG_mixed.detach())
-            D_mixed_fake2plot.append(D_mixed_G_z)
+            errD_mixed_fake2plot.append(D_mixed_G_z)
+            G_total_loss += errG_mixed.detach()
+        errG_total_loss_2plot.append(G_total_loss)
         D1_real2plot.append(D1_x1)
         D2_real2plot.append(D2_x2)
         D1_fake2plot.append(D1_G_z)
@@ -272,6 +276,30 @@ def train_single_scale(netD1, netD2,netG,reals1, reals2,Gs,Zs,in_s1, in_s2,Noise
         schedulerG.step()
 
     functions.save_networks(netG,netD1, netD2,z_opt1, z_opt2,opt)
+
+    if mixed_imgs_training:
+        functions.plot_learning_curves("mixed_loss", opt.niter, [errG_mixed_fake_2plot, errD_mixed_fake2plot],
+                                       ["G_mixed", "D_mixed"], opt.outf)
+    functions.plot_learning_curves("G_loss", opt.niter, [errG_total_loss_2plot,
+                                                         errG_total_loss1_2plot, errG_total_loss2_2plot,
+                                                         errG_fake1_2plot, errG_fake2_2plot,
+                                                         reconstruction_loss1_2plot,
+                                                         reconstruction_loss2_2plot],
+                                   ["G_total_loss", "G_total_loss1", "G_total_loss2",
+                                    "G_fake1_loss", "G_fake2_loss",
+                                    "G_recon_loss_1", "G_recon_loss_2"], opt.outf)
+    d_plots = [err_D1_2plot, err_D2_2plot]
+    d_labels = ["D1_total_loss", "D2_total_loss"]
+    if mixed_imgs_training:
+        d_plots.append(errD_mixed_fake2plot)
+        d_labels.append("D_mixed_loss")
+
+    functions.plot_learning_curves("D_loss", opt.niter, d_plots, d_labels, opt.outf)
+    functions.plot_learning_curves("G_vs_D_loss", opt.niter,
+                                   [errG_total_loss_2plot, errG_total_loss1_2plot, errG_total_loss2_2plot,
+                                    err_D1_2plot, err_D2_2plot],
+                                   ["G_total_loss", "G_total_loss1", "G_total_loss2", "D1_total_loss", "D2_total_loss"],
+                                   opt.outf)
     return (z_opt1, z_opt2), (in_s1, in_s2), netG
 
 

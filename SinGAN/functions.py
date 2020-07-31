@@ -1,3 +1,5 @@
+from typing import List
+
 import torch
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
@@ -83,15 +85,17 @@ def generate_noise(size,num_samp=1,device='cuda',type='gaussian', scale=1):
         noise = torch.randn(num_samp, size[0], size[1], size[2], device=device)
     return noise
 
-def plot_learning_curves(G_loss,D_loss,epochs,label1,label2,name):
+
+def plot_learning_curves(plot_name: str, epochs: int, values_list: List[list], labels_list: List[str], base_dir: str):
     fig,ax = plt.subplots(1)
     n = np.arange(0,epochs)
-    plt.plot(n,G_loss,n,D_loss)
+    for values in values_list:
+        plt.plot(n, values)
     #plt.title('loss')
     #plt.ylabel('loss')
     plt.xlabel('epochs')
-    plt.legend([label1,label2],loc='upper right')
-    plt.savefig('%s.png' % name)
+    plt.legend(labels_list,loc='upper right')
+    plt.savefig(os.path.join(base_dir, f'{plot_name}.png'))
     plt.close(fig)
 
 def plot_learning_curve(loss,epochs,name):
