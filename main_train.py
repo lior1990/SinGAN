@@ -2,6 +2,9 @@ import json
 import os
 import logging
 from typing import List, Tuple
+import matplotlib
+
+matplotlib.use('Agg')
 
 from SinGAN.manipulate import SinGAN_generate, get_arguments
 from SinGAN.training import train
