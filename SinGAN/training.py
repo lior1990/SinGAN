@@ -60,10 +60,10 @@ def train(opt,Gs,Zs,reals1, reals2,NoiseAmp):
             D1_curr.load_state_dict(torch.load('%s/%d/netD1.pth' % (opt.out_,scale_num-1)))
             D2_curr.load_state_dict(torch.load('%s/%d/netD2.pth' % (opt.out_, scale_num - 1)))
 
-        logger.info(f"Starting to train scale {scale_num}...")
-        mixed_imgs_training = opt.mixed_imgs_starting_scale == scale_num
+        mixed_imgs_training = opt.mixed_imgs_starting_scale <= scale_num
+        logger.info(f"Starting to train scale {scale_num}. Mixed imgs status: {mixed_imgs_training}")
         z_curr_tuple, in_s_tuple, G_curr = train_single_scale(D1_curr, D2_curr,G_curr,reals1, reals2,Gs,Zs,in_s1, in_s2,NoiseAmp,opt,
-                                                        mixed_imgs_training=mixed_imgs_training)
+                                                              mixed_imgs_training=mixed_imgs_training)
         in_s1, in_s2 = in_s_tuple
         logger.info(f"Done training scale {scale_num}")
 
@@ -91,7 +91,7 @@ def train(opt,Gs,Zs,reals1, reals2,NoiseAmp):
 
 
 
-def train_single_scale(netD1, netD2,netG,reals1, reals2,Gs,Zs,in_s1, in_s2,NoiseAmp,opt,centers=None, mixed_imgs_training=False):
+def train_single_scale(netD1, netD2,netG,reals1, reals2,Gs,Zs,in_s1, in_s2,NoiseAmp,opt, mixed_imgs_training=False):
 
     real1 = reals1[len(Gs)]
     real2 = reals2[len(Gs)]
@@ -163,14 +163,16 @@ def train_single_scale(netD1, netD2,netG,reals1, reals2,Gs,Zs,in_s1, in_s2,Noise
             errD2_real, D2_x2 = discriminator_train_with_real(netD2, opt, real2)
 
             # train with fake
-            in_s1, noise1, prev1, new_z_prev1 = _prepare_discriminator_train_with_fake_input(Gs, NoiseAmp, Zs, epoch, in_s1,
-                                                                                         is_first_scale, j, m_image, m_noise,
-                                                                                         noise1_, opt, real1, reals1,
-                                                                                         NoiseMode.Z1)
-            in_s2, noise2, prev2, new_z_prev2 = _prepare_discriminator_train_with_fake_input(Gs, NoiseAmp, Zs, epoch, in_s2,
-                                                                                         is_first_scale, j, m_image, m_noise,
-                                                                                         noise2_, opt, real2, reals2,
-                                                                                         NoiseMode.Z2)
+            in_s1, noise1, prev1, new_z_prev1 = _prepare_discriminator_train_with_fake_input(Gs, NoiseAmp, Zs, epoch,
+                                                                                             in_s1, is_first_scale, j,
+                                                                                             m_image, m_noise, noise1_,
+                                                                                             opt, real1, reals1,
+                                                                                             NoiseMode.Z1)
+            in_s2, noise2, prev2, new_z_prev2 = _prepare_discriminator_train_with_fake_input(Gs, NoiseAmp, Zs, epoch,
+                                                                                             in_s2, is_first_scale, j,
+                                                                                             m_image, m_noise, noise2_,
+                                                                                             opt, real2, reals2,
+                                                                                             NoiseMode.Z2)
             if new_z_prev1 is not None:
                 z_prev1 = new_z_prev1
             if new_z_prev2 is not None:
@@ -178,12 +180,13 @@ def train_single_scale(netD1, netD2,netG,reals1, reals2,Gs,Zs,in_s1, in_s2,Noise
 
             # Z1 only:
             mixed_noise1 = torch.cat((noise1, torch.zeros(noise1.shape, device=opt.device)))
-            D1_G_z, errD1_fake, gradient_penalty1, fake1 = _train_discriminator_with_fake(netD1, netG, mixed_noise1, opt, prev1, real1)
+            D1_G_z, errD1_fake, gradient_penalty1, fake1 = _train_discriminator_with_fake(netD1, netG, mixed_noise1,
+                                                                                          opt, prev1, real1)
 
             # Z2 only:
             mixed_noise2 = torch.cat((torch.zeros(noise2.shape, device=opt.device), noise2))
-            D2_G_z, errD2_fake, gradient_penalty2, fake2 = _train_discriminator_with_fake(netD2, netG, mixed_noise2, opt, prev2,
-                                                                                   real2)
+            D2_G_z, errD2_fake, gradient_penalty2, fake2 = _train_discriminator_with_fake(netD2, netG, mixed_noise2,
+                                                                                          opt, prev2, real2)
 
             errD1 = errD1_real + errD1_fake + gradient_penalty1
             errD2 = errD2_real + errD2_fake + gradient_penalty2
@@ -217,7 +220,7 @@ def train_single_scale(netD1, netD2,netG,reals1, reals2,Gs,Zs,in_s1, in_s2,Noise
             errG1 = _generator_train_with_fake(fake1, netD1)
             errG2 = _generator_train_with_fake(fake2, netD2)
             rec_loss1, Z_opt1 = _reconstruction_loss(alpha, netG, opt, z_opt1, z_prev1, real1)
-            rec_loss2, Z_opt2 = _reconstruction_loss(alpha, netG, opt, z_opt1, z_prev2, real2)
+            rec_loss2, Z_opt2 = _reconstruction_loss(alpha, netG, opt, z_opt2, z_prev2, real2)
 
             if mixed_imgs_training:
                 output1 = netD1(mixed_fake)
