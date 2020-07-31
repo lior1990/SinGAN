@@ -180,12 +180,14 @@ def train_single_scale(netD1, netD2,netG,reals1, reals2,Gs,Zs,in_s1, in_s2,Noise
                 z_prev2 = new_z_prev2
 
             # Z1 only:
-            mixed_noise1 = torch.cat((noise1, torch.zeros(noise1.shape, device=opt.device)))
+            mixed_noise1 = _merge_noise_vectors(noise1, torch.zeros(noise1.shape, device=opt.device),
+                                                opt.noise_vectors_merge_method)
             D1_G_z, errD1_fake, gradient_penalty1, fake1 = _train_discriminator_with_fake(netD1, netG, mixed_noise1,
                                                                                           opt, prev1, real1)
 
             # Z2 only:
-            mixed_noise2 = torch.cat((torch.zeros(noise2.shape, device=opt.device), noise2))
+            mixed_noise2 = _merge_noise_vectors(torch.zeros(noise2.shape, device=opt.device), noise2,
+                                                opt.noise_vectors_merge_method)
             D2_G_z, errD2_fake, gradient_penalty2, fake2 = _train_discriminator_with_fake(netD2, netG, mixed_noise2,
                                                                                           opt, prev2, real2)
 
@@ -193,7 +195,7 @@ def train_single_scale(netD1, netD2,netG,reals1, reals2,Gs,Zs,in_s1, in_s2,Noise
             errD2 = errD2_real + errD2_fake + gradient_penalty2
 
             if mixed_imgs_training:
-                noise = torch.cat((noise1, noise2))
+                noise = _merge_noise_vectors(noise1, noise2, opt.noise_vectors_merge_method)
                 # todo: decide which prev should use for mixed
                 prev = prev1
                 mixed_fake = netG(noise.detach(), prev)
@@ -415,7 +417,7 @@ def draw_concat(Gs,Zs,reals,NoiseAmp,in_s,mode,m_noise,m_image,opt, noise_mode: 
                     z2 = _create_noise_for_draw_concat(opt, count, pad_noise, m_noise, Z_opt2)
                 else:
                     raise NotImplementedError
-                z = torch.cat((z1, z2))
+                z = _merge_noise_vectors(z1, z2, opt.noise_vectors_merge_method)
                 G_z = G_z[:,:,0:real_curr.shape[2],0:real_curr.shape[3]]
                 G_z = m_image(G_z)
                 z_in = noise_amp*z+G_z
@@ -428,7 +430,7 @@ def draw_concat(Gs,Zs,reals,NoiseAmp,in_s,mode,m_noise,m_image,opt, noise_mode: 
             for G,(Z_opt1, Z_opt2),real_curr,real_next,noise_amp in zip(Gs,Zs,reals,reals[1:],NoiseAmp):
                 G_z = G_z[:, :, 0:real_curr.shape[2], 0:real_curr.shape[3]]
                 G_z = m_image(G_z)
-                Z_opt = torch.cat((Z_opt1, Z_opt2))
+                Z_opt = _merge_noise_vectors(Z_opt1, Z_opt2, opt.noise_vectors_merge_method)
                 z_in = noise_amp*Z_opt+G_z
                 G_z = G(z_in.detach(),G_z)
                 G_z = imresize(G_z,1/opt.scale_factor,opt)
@@ -437,6 +439,16 @@ def draw_concat(Gs,Zs,reals,NoiseAmp,in_s,mode,m_noise,m_image,opt, noise_mode: 
                 #    G_z = m_image(G_z)
                 count += 1
     return G_z
+
+
+def _merge_noise_vectors(noise_vector1, noise_vector2, noise_vectors_merge_method):
+    # merge the noise vectors in the some consist way - concatenate according to sum dimension/sum/other
+    if noise_vectors_merge_method == "cat":
+        return torch.cat((noise_vector1, noise_vector2))
+    elif noise_vectors_merge_method == "sum":
+        return noise_vector1 + noise_vector2
+    else:
+        raise NotImplementedError
 
 
 def _create_noise_for_draw_concat(opt, count, pad_noise, m_noise, Z_opt):

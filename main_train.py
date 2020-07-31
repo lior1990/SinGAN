@@ -1,3 +1,4 @@
+import json
 import os
 import logging
 from typing import List, Tuple
@@ -43,6 +44,11 @@ if __name__ == '__main__':
         except OSError:
             pass
         _configure_logger(dir2save)
+
+        # dump configuration file to json
+        with open(os.path.join(f"{dir2save}", "config.json"), "w") as fp:
+            config_dict = {k: str(v) for k, v in opt.__dict__.items()}
+            json.dump(config_dict, fp)
 
         real1 = functions.read_image(opt, image_name=opt.input_name1)
         real2 = functions.read_image(opt, image_name=opt.input_name2)
