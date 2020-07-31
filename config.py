@@ -58,4 +58,7 @@ def get_arguments():
     parser.add_argument("--noise_vectors_merge_method", type=str, default="cat",
                         help="Determine how to treat the different noise vectors (how to merge them to a single vector)"
                         )
+    parser.add_argument("--exp_name", type=str, default="default_exp",
+                        help="Unique experiment name"
+                        )
     return parser

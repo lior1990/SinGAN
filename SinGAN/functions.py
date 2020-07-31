@@ -262,13 +262,13 @@ def generate_dir2save(opt):
     dir_name = f"{opt.input_name1[:-4]}_{opt.input_name2[:-4]}"
 
     if (opt.mode == 'train') | (opt.mode == 'SR_train'):
-        dir2save = 'TrainedModels/%s/scale_factor=%f,alpha=%d' % (dir_name, opt.scale_factor_init,opt.alpha)
+        dir2save = os.path.join("TrainedModels", dir_name, f"scale_factor={opt.scale_factor_init},alpha={opt.alpha}", opt.exp_name)
     elif (opt.mode == 'animation_train') :
         dir2save = 'TrainedModels/%s/scale_factor=%f_noise_padding' % (opt.input_name[:-4], opt.scale_factor_init)
     elif (opt.mode == 'paint_train') :
         dir2save = 'TrainedModels/%s/scale_factor=%f_paint/start_scale=%d' % (opt.input_name[:-4], opt.scale_factor_init,opt.paint_start_scale)
     elif opt.mode == 'random_samples':
-        dir2save = '%s/RandomSamples/%s/gen_start_scale=%d' % (opt.out,dir_name, opt.gen_start_scale)
+        dir2save = os.path.join(opt.out, "RandomSamples", dir_name, f"gen_start_scale={opt.gen_start_scale}", opt.exp_name)
     elif opt.mode == 'random_samples_arbitrary_sizes':
         dir2save = '%s/RandomSamples_ArbitrerySizes/%s/scale_v=%f_scale_h=%f' % (opt.out,dir_name, opt.scale_v, opt.scale_h)
     elif opt.mode == 'animation':
