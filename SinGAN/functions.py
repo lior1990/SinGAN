@@ -1,4 +1,5 @@
-from typing import List
+from enum import Enum
+from typing import List, Optional
 
 import torch
 import matplotlib.pyplot as plt
@@ -16,6 +17,14 @@ import os
 import random
 from sklearn.cluster import KMeans
 
+
+class NoiseMode(Enum):
+    Z1 = 1
+    Z2 = 2
+    MIXED = 3
+
+
+GAUSSIAN_NOISE_Z_DISTANCE = 1
 
 # custom weights initialization called on netG and netD
 
@@ -73,9 +82,14 @@ def convert_image_np_2d(inp):
     # inp = std*
     return inp
 
-def generate_noise(size,num_samp=1,device='cuda',type='gaussian', scale=1):
+
+def generate_noise(size,num_samp=1,device='cuda',type='gaussian', scale=1, noise_mode: Optional[NoiseMode] =None):
     if type == 'gaussian':
         noise = torch.randn(num_samp, size[0], round(size[1]/scale), round(size[2]/scale), device=device)
+        if noise_mode == NoiseMode.Z1:
+            noise += GAUSSIAN_NOISE_Z_DISTANCE
+        elif noise_mode == NoiseMode.Z2:
+            noise -= GAUSSIAN_NOISE_Z_DISTANCE
         noise = upsampling(noise,size[1], size[2])
     if type =='gaussian_mixture':
         noise1 = torch.randn(num_samp, size[0], size[1], size[2], device=device)+5
@@ -205,19 +219,6 @@ def adjust_scales2image(real_,opt):
     #opt.scale_factor = math.pow(opt.min_size / (real.shape[2]), 1 / (opt.stop_scale))
     opt.scale_factor = math.pow(opt.min_size/(min(real.shape[2],real.shape[3])),1/(opt.stop_scale))
     scale2stop = math.ceil(math.log(min([opt.max_size, max([real_.shape[2], real_.shape[3]])]) / max([real_.shape[2], real_.shape[3]]),opt.scale_factor_init))
-    opt.stop_scale = opt.num_scales - scale2stop
-    return real
-
-def adjust_scales2image_SR(real_,opt):
-    opt.min_size = 18
-    opt.num_scales = int((math.log(opt.min_size / min(real_.shape[2], real_.shape[3]), opt.scale_factor_init))) + 1
-    scale2stop = int(math.log(min(opt.max_size , max(real_.shape[2], real_.shape[3])) / max(real_.shape[0], real_.shape[3]), opt.scale_factor_init))
-    opt.stop_scale = opt.num_scales - scale2stop
-    opt.scale1 = min(opt.max_size / max([real_.shape[2], real_.shape[3]]), 1)  # min(250/max([real_.shape[0],real_.shape[1]]),1)
-    real = imresize(real_, opt.scale1, opt)
-    #opt.scale_factor = math.pow(opt.min_size / (real.shape[2]), 1 / (opt.stop_scale))
-    opt.scale_factor = math.pow(opt.min_size/(min(real.shape[2],real.shape[3])),1/(opt.stop_scale))
-    scale2stop = int(math.log(min(opt.max_size, max(real_.shape[2], real_.shape[3])) / max(real_.shape[0], real_.shape[3]), opt.scale_factor_init))
     opt.stop_scale = opt.num_scales - scale2stop
     return real
 
@@ -362,3 +363,11 @@ def dilate_mask(mask,opt):
     return mask
 
 
+def merge_noise_vectors(noise_vector1, noise_vector2, noise_vectors_merge_method):
+    # merge the noise vectors in the some consist way - concatenate according to sum dimension/sum/other
+    if noise_vectors_merge_method == "cat":
+        return torch.cat((noise_vector1, noise_vector2))
+    elif noise_vectors_merge_method == "sum":
+        return noise_vector1 + noise_vector2
+    else:
+        raise NotImplementedError

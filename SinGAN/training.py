@@ -1,5 +1,4 @@
 import logging
-from enum import Enum
 from typing import Tuple
 
 import SinGAN.functions as functions
@@ -10,15 +9,11 @@ import torch.optim as optim
 import torch.utils.data
 import math
 import matplotlib.pyplot as plt
+
+from SinGAN.functions import NoiseMode
 from SinGAN.imresize import imresize
 
 logger = logging.getLogger()
-
-
-class NoiseMode(Enum):
-    Z1 = 1
-    Z2 = 2
-    MIXED = 3
 
 
 def get_reals(reals, opt, image_name):
@@ -144,8 +139,8 @@ def train_single_scale(netD1, netD2,netG,reals1, reals2,Gs,Zs,in_s1, in_s2,Noise
         """
         is_first_scale = len(Gs) == 0
 
-        noise1_, z_opt1 = _create_noise_for_iteration(is_first_scale, m_noise, opt, z_opt)
-        noise2_, z_opt2 = _create_noise_for_iteration(is_first_scale, m_noise, opt, z_opt)
+        noise1_, z_opt1 = _create_noise_for_iteration(is_first_scale, m_noise, opt, z_opt, NoiseMode.Z1)
+        noise2_, z_opt2 = _create_noise_for_iteration(is_first_scale, m_noise, opt, z_opt, NoiseMode.Z2)
 
         ############################
         # (1) Update D networks:
@@ -180,14 +175,14 @@ def train_single_scale(netD1, netD2,netG,reals1, reals2,Gs,Zs,in_s1, in_s2,Noise
                 z_prev2 = new_z_prev2
 
             # Z1 only:
-            mixed_noise1 = _merge_noise_vectors(noise1, torch.zeros(noise1.shape, device=opt.device),
-                                                opt.noise_vectors_merge_method)
+            mixed_noise1 = functions.merge_noise_vectors(noise1, torch.zeros(noise1.shape, device=opt.device),
+                                               opt.noise_vectors_merge_method)
             D1_G_z, errD1_fake, gradient_penalty1, fake1 = _train_discriminator_with_fake(netD1, netG, mixed_noise1,
                                                                                           opt, prev1, real1)
 
             # Z2 only:
-            mixed_noise2 = _merge_noise_vectors(torch.zeros(noise2.shape, device=opt.device), noise2,
-                                                opt.noise_vectors_merge_method)
+            mixed_noise2 = functions.merge_noise_vectors(torch.zeros(noise2.shape, device=opt.device), noise2,
+                                               opt.noise_vectors_merge_method)
             D2_G_z, errD2_fake, gradient_penalty2, fake2 = _train_discriminator_with_fake(netD2, netG, mixed_noise2,
                                                                                           opt, prev2, real2)
 
@@ -195,7 +190,7 @@ def train_single_scale(netD1, netD2,netG,reals1, reals2,Gs,Zs,in_s1, in_s2,Noise
             errD2 = errD2_real + errD2_fake + gradient_penalty2
 
             if mixed_imgs_training:
-                noise = _merge_noise_vectors(noise1, noise2, opt.noise_vectors_merge_method)
+                noise = functions.merge_noise_vectors(noise1, noise2, opt.noise_vectors_merge_method)
                 # todo: decide which prev should use for mixed
                 prev = prev1
                 mixed_fake = netG(noise.detach(), prev)
@@ -320,9 +315,9 @@ def _reconstruction_loss(alpha, netG, opt, z_opt, z_prev, real, noise_mode: Nois
         z_zero = torch.zeros(Z_opt.shape, device=opt.device)
 
         if noise_mode.Z1:
-            Z_opt = _merge_noise_vectors(Z_opt, z_zero, opt.noise_vectors_merge_method)
+            Z_opt = functions.merge_noise_vectors(Z_opt, z_zero, opt.noise_vectors_merge_method)
         elif noise_mode.Z2:
-            Z_opt = _merge_noise_vectors(z_zero, Z_opt, opt.noise_vectors_merge_method)
+            Z_opt = functions.merge_noise_vectors(z_zero, Z_opt, opt.noise_vectors_merge_method)
         else:
             raise NotImplementedError
 
@@ -386,15 +381,15 @@ def _prepare_discriminator_train_with_fake_input(Gs, NoiseAmp, Zs, epoch, in_s, 
     return in_s, noise, prev, z_prev
 
 
-def _create_noise_for_iteration(is_first_scale, m_noise, opt, default_z_opt):
+def _create_noise_for_iteration(is_first_scale, m_noise, opt, default_z_opt, noise_mode):
     if is_first_scale:
-        z_opt = functions.generate_noise([1, opt.nzx, opt.nzy], device=opt.device)
+        z_opt = functions.generate_noise([1, opt.nzx, opt.nzy], device=opt.device, noise_mode=noise_mode)
         z_opt = m_noise(z_opt.expand(1, 3, opt.nzx, opt.nzy))
-        noise_ = functions.generate_noise([1, opt.nzx, opt.nzy], device=opt.device)
+        noise_ = functions.generate_noise([1, opt.nzx, opt.nzy], device=opt.device, noise_mode=noise_mode)
         noise_ = m_noise(noise_.expand(1, 3, opt.nzx, opt.nzy))
     else:
         z_opt = default_z_opt
-        noise_ = functions.generate_noise([opt.nc_z, opt.nzx, opt.nzy], device=opt.device)
+        noise_ = functions.generate_noise([opt.nc_z, opt.nzx, opt.nzy], device=opt.device, noise_mode=noise_mode)
         noise_ = m_noise(noise_)
     return noise_, z_opt
 
@@ -408,7 +403,7 @@ def discriminator_train_with_real(netD, opt, real):
     return errD_real, D_x
 
 
-def draw_concat(Gs,Zs,reals,NoiseAmp,in_s,mode,m_noise,m_image,opt, noise_mode: NoiseMode):
+def draw_concat(Gs, Zs, reals, NoiseAmp, in_s, mode, m_noise, m_image, opt, noise_mode: NoiseMode):
     G_z = in_s
     if len(Gs) > 0:
         if mode == 'rand':
@@ -416,17 +411,17 @@ def draw_concat(Gs,Zs,reals,NoiseAmp,in_s,mode,m_noise,m_image,opt, noise_mode: 
             pad_noise = int(((opt.ker_size-1)*opt.num_layer)/2)
             for G,(Z_opt1, Z_opt2),real_curr,real_next,noise_amp in zip(Gs,Zs,reals,reals[1:],NoiseAmp):
                 if noise_mode == NoiseMode.Z1:
-                    z1 = _create_noise_for_draw_concat(opt, count, pad_noise, m_noise, Z_opt1)
+                    z1 = _create_noise_for_draw_concat(opt, count, pad_noise, m_noise, Z_opt1, noise_mode)
                     z2 = torch.zeros(z1.shape, device=opt.device)
                 elif noise_mode == NoiseMode.Z2:
-                    z2 = _create_noise_for_draw_concat(opt, count, pad_noise, m_noise, Z_opt2)
+                    z2 = _create_noise_for_draw_concat(opt, count, pad_noise, m_noise, Z_opt2, noise_mode)
                     z1 = torch.zeros(z2.shape, device=opt.device)
                 elif noise_mode == NoiseMode.MIXED:
-                    z1 = _create_noise_for_draw_concat(opt, count, pad_noise, m_noise, Z_opt1)
-                    z2 = _create_noise_for_draw_concat(opt, count, pad_noise, m_noise, Z_opt2)
+                    z1 = _create_noise_for_draw_concat(opt, count, pad_noise, m_noise, Z_opt1, noise_mode)
+                    z2 = _create_noise_for_draw_concat(opt, count, pad_noise, m_noise, Z_opt2, noise_mode)
                 else:
                     raise NotImplementedError
-                z = _merge_noise_vectors(z1, z2, opt.noise_vectors_merge_method)
+                z = functions.merge_noise_vectors(z1, z2, opt.noise_vectors_merge_method)
                 G_z = G_z[:,:,0:real_curr.shape[2],0:real_curr.shape[3]]
                 G_z = m_image(G_z)
                 z_in = noise_amp*z+G_z
@@ -439,7 +434,7 @@ def draw_concat(Gs,Zs,reals,NoiseAmp,in_s,mode,m_noise,m_image,opt, noise_mode: 
             for G,(Z_opt1, Z_opt2),real_curr,real_next,noise_amp in zip(Gs,Zs,reals,reals[1:],NoiseAmp):
                 G_z = G_z[:, :, 0:real_curr.shape[2], 0:real_curr.shape[3]]
                 G_z = m_image(G_z)
-                Z_opt = _merge_noise_vectors(Z_opt1, Z_opt2, opt.noise_vectors_merge_method)
+                Z_opt = functions.merge_noise_vectors(Z_opt1, Z_opt2, opt.noise_vectors_merge_method)
                 z_in = noise_amp*Z_opt+G_z
                 G_z = G(z_in.detach(),G_z)
                 G_z = imresize(G_z,1/opt.scale_factor,opt)
@@ -450,24 +445,14 @@ def draw_concat(Gs,Zs,reals,NoiseAmp,in_s,mode,m_noise,m_image,opt, noise_mode: 
     return G_z
 
 
-def _merge_noise_vectors(noise_vector1, noise_vector2, noise_vectors_merge_method):
-    # merge the noise vectors in the some consist way - concatenate according to sum dimension/sum/other
-    if noise_vectors_merge_method == "cat":
-        return torch.cat((noise_vector1, noise_vector2))
-    elif noise_vectors_merge_method == "sum":
-        return noise_vector1 + noise_vector2
-    else:
-        raise NotImplementedError
-
-
-def _create_noise_for_draw_concat(opt, count, pad_noise, m_noise, Z_opt):
+def _create_noise_for_draw_concat(opt, count, pad_noise, m_noise, Z_opt, noise_mode):
     if count == 0:
         z = functions.generate_noise([1, Z_opt.shape[2] - 2 * pad_noise, Z_opt.shape[3] - 2 * pad_noise],
-                                     device=opt.device)
+                                     device=opt.device, noise_mode=noise_mode)
         z = z.expand(1, 3, z.shape[2], z.shape[3])
     else:
         z = functions.generate_noise([opt.nc_z, Z_opt.shape[2] - 2 * pad_noise, Z_opt.shape[3] - 2 * pad_noise],
-                                     device=opt.device)
+                                     device=opt.device, noise_mode=noise_mode)
     z = m_noise(z)
     return z
 
