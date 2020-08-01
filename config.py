@@ -13,6 +13,7 @@ def get_arguments():
     parser.add_argument('--netG', default='', help="path to netG (to continue training)")
     parser.add_argument('--netD1', default='', help="path to netD (to continue training)")
     parser.add_argument('--netD2', default='', help="path to netD (to continue training)")
+    parser.add_argument('--netD_mixed', default='', help="path to netD (to continue training)")
     parser.add_argument('--manualSeed', type=int, help='manual seed')
     parser.add_argument('--nc_z',type=int,help='noise # channels',default=3)
     parser.add_argument('--nc_im',type=int,help='image # channels',default=3)

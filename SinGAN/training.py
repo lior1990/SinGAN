@@ -30,6 +30,7 @@ def train(opt,Gs,Zs,reals1, reals2,NoiseAmp):
     reals2 = get_reals(reals2, opt, opt.input_name2)
     in_s1 = 0
     in_s2 = 0
+    in_s_mixed = 0
     scale_num = 0
     nfc_prev = 0
 
@@ -49,15 +50,16 @@ def train(opt,Gs,Zs,reals1, reals2,NoiseAmp):
         plt.imsave('%s/real_scale1.png' %  (opt.outf), functions.convert_image_np(reals1[scale_num]), vmin=0, vmax=1)
         plt.imsave('%s/real_scale2.png' % (opt.outf), functions.convert_image_np(reals2[scale_num]), vmin=0, vmax=1)
 
-        D1_curr, D2_curr,G_curr = init_models(opt)
+        D1_curr, D2_curr, D_mixed_curr, G_curr = init_models(opt)
         if (nfc_prev==opt.nfc):
             G_curr.load_state_dict(torch.load('%s/%d/netG.pth' % (opt.out_,scale_num-1)))
             D1_curr.load_state_dict(torch.load('%s/%d/netD1.pth' % (opt.out_,scale_num-1)))
             D2_curr.load_state_dict(torch.load('%s/%d/netD2.pth' % (opt.out_, scale_num - 1)))
+            D_mixed_curr.load_state_dict(torch.load('%s/%d/netD_mixed.pth' % (opt.out_, scale_num - 1)))
 
         mixed_imgs_training = opt.mixed_imgs_starting_scale <= scale_num
         logger.info(f"Starting to train scale {scale_num}. Mixed imgs status: {mixed_imgs_training}")
-        z_curr_tuple, in_s_tuple, G_curr = train_single_scale(D1_curr, D2_curr,G_curr,reals1, reals2,Gs,Zs,in_s1, in_s2,NoiseAmp,opt,
+        z_curr_tuple, in_s_tuple, G_curr = train_single_scale(D1_curr, D2_curr, D_mixed_curr,G_curr,reals1, reals2,Gs,Zs,in_s1, in_s2, in_s_mixed,NoiseAmp,opt,
                                                               mixed_imgs_training=mixed_imgs_training)
         in_s1, in_s2 = in_s_tuple
         logger.info(f"Done training scale {scale_num}")
@@ -68,6 +70,8 @@ def train(opt,Gs,Zs,reals1, reals2,NoiseAmp):
         D1_curr.eval()
         D2_curr = functions.reset_grads(D2_curr,False)
         D2_curr.eval()
+        D_mixed_curr = functions.reset_grads(D_mixed_curr,False)
+        D_mixed_curr.eval()
 
         Gs.append(G_curr)
         Zs.append(z_curr_tuple)
@@ -81,12 +85,12 @@ def train(opt,Gs,Zs,reals1, reals2,NoiseAmp):
 
         scale_num+=1
         nfc_prev = opt.nfc
-        del D1_curr, D2_curr,G_curr
+        del D1_curr, D2_curr, D_mixed_curr,G_curr
     return
 
 
 
-def train_single_scale(netD1, netD2,netG,reals1, reals2,Gs,Zs,in_s1, in_s2,NoiseAmp,opt, mixed_imgs_training=False):
+def train_single_scale(netD1, netD2, netD_mixed,netG,reals1, reals2,Gs,Zs,in_s1, in_s2, in_s_mixed,NoiseAmp,opt, mixed_imgs_training=False):
 
     real1 = reals1[len(Gs)]
     real2 = reals2[len(Gs)]
@@ -141,6 +145,7 @@ def train_single_scale(netD1, netD2,netG,reals1, reals2,Gs,Zs,in_s1, in_s2,Noise
 
         noise1_, z_opt1 = _create_noise_for_iteration(is_first_scale, m_noise, opt, z_opt, NoiseMode.Z1)
         noise2_, z_opt2 = _create_noise_for_iteration(is_first_scale, m_noise, opt, z_opt, NoiseMode.Z2)
+        noise_mixed_, _ = _create_noise_for_iteration(is_first_scale, m_noise, opt, z_opt, NoiseMode.MIXED)
 
         ############################
         # (1) Update D networks:
@@ -158,6 +163,11 @@ def train_single_scale(netD1, netD2,netG,reals1, reals2,Gs,Zs,in_s1, in_s2,Noise
             errD1_real, D1_x1 = discriminator_train_with_real(netD1, opt, real1)
             errD2_real, D2_x2 = discriminator_train_with_real(netD2, opt, real2)
 
+            # train mixed on both
+            errD_mixed_real1, D_mixed_x1 = discriminator_train_with_real(netD_mixed, opt, real1)
+            errD_mixed_real2, D_mixed_x2 = discriminator_train_with_real(netD_mixed, opt, real2)
+
+
             # train with fake
             in_s1, noise1, prev1, new_z_prev1 = _prepare_discriminator_train_with_fake_input(Gs, NoiseAmp, Zs, epoch,
                                                                                              in_s1, is_first_scale, j,
@@ -169,6 +179,12 @@ def train_single_scale(netD1, netD2,netG,reals1, reals2,Gs,Zs,in_s1, in_s2,Noise
                                                                                              m_image, m_noise, noise2_,
                                                                                              opt, real2, reals2,
                                                                                              NoiseMode.Z2)
+            in_s_mixed, noise_mixed, prev_mixed, _ = _prepare_discriminator_train_with_fake_input(Gs, NoiseAmp, Zs, epoch,
+                                                                                             in_s_mixed, is_first_scale, j,
+                                                                                             m_image, m_noise, noise_mixed_,
+                                                                                             opt, real2, reals2,
+                                                                                             NoiseMode.MIXED)
+
             if new_z_prev1 is not None:
                 z_prev1 = new_z_prev1
             if new_z_prev2 is not None:
@@ -192,11 +208,13 @@ def train_single_scale(netD1, netD2,netG,reals1, reals2,Gs,Zs,in_s1, in_s2,Noise
             if mixed_imgs_training:
                 noise = functions.merge_noise_vectors(noise1, noise2, opt.noise_vectors_merge_method)
                 # todo: decide which prev should use for mixed
-                prev = prev1
+                prev = prev1 if torch.rand(1) < 0.5 else prev2
                 mixed_fake = netG(noise.detach(), prev)
-                output1 = netD1(mixed_fake.detach())
-                output2 = netD2(mixed_fake.detach())
-                errD_mixed_fake = (opt.D_img1_regularization_loss * output1 + opt.D_img2_regularization_loss * output2).mean()
+                output = netD_mixed(mixed_fake.detach())
+                errD_mixed_fake = output.mean()
+                # output1 = netD1(mixed_fake.detach())
+                # output2 = netD2(mixed_fake.detach())
+                # errD_mixed_fake = (opt.D_img1_regularization_loss * output1 + opt.D_img2_regularization_loss * output2).mean()
                 errD_mixed_fake.backward(retain_graph=True)
                 D_mixed_G_z = errD_mixed_fake.item()
 
@@ -221,9 +239,11 @@ def train_single_scale(netD1, netD2,netG,reals1, reals2,Gs,Zs,in_s1, in_s2,Noise
             rec_loss2, Z_opt2 = _reconstruction_loss(alpha, netG, opt, z_opt2, z_prev2, real2, NoiseMode.Z2)
 
             if mixed_imgs_training:
-                output1 = netD1(mixed_fake)
-                output2 = netD2(mixed_fake)
-                errG_mixed = -(opt.D_img1_regularization_loss * output1 + opt.D_img2_regularization_loss * output2).mean()
+                # output1 = netD1(mixed_fake)
+                # output2 = netD2(mixed_fake)
+                # errG_mixed = -(opt.D_img1_regularization_loss * output1 + opt.D_img2_regularization_loss * output2).mean()
+                output = netD_mixed(mixed_fake)
+                errG_mixed = -output.mean()
                 errG_mixed.backward(retain_graph=True)
 
             optimizerG.step()
@@ -272,7 +292,7 @@ def train_single_scale(netD1, netD2,netG,reals1, reals2,Gs,Zs,in_s1, in_s2,Noise
         schedulerD2.step()
         schedulerG.step()
 
-    functions.save_networks(netG,netD1, netD2,z_opt1, z_opt2,opt)
+    functions.save_networks(netG,netD1, netD2, netD_mixed,z_opt1, z_opt2,opt)
 
     if mixed_imgs_training:
         functions.plot_learning_curves("mixed_loss", opt.niter, [errG_mixed_fake_2plot, errD_mixed_fake2plot],
@@ -355,7 +375,7 @@ def _prepare_discriminator_train_with_fake_input(Gs, NoiseAmp, Zs, epoch, in_s, 
             elif noise_mode == NoiseMode.Z2:
                 opt.noise_amp2 = 1
             else:
-                raise NotImplementedError
+                pass  # todo: implement
         else:
             prev = draw_concat(Gs, Zs, reals, NoiseAmp, in_s, 'rand', m_noise, m_image, opt, noise_mode)
             prev = m_image(prev)
@@ -367,7 +387,7 @@ def _prepare_discriminator_train_with_fake_input(Gs, NoiseAmp, Zs, epoch, in_s, 
             elif noise_mode == NoiseMode.Z2:
                 opt.noise_amp2 = opt.noise_amp_init * RMSE
             else:
-                raise NotImplementedError
+                pass  # todo: implement
             z_prev = m_image(z_prev)
     else:
         prev = draw_concat(Gs, Zs, reals, NoiseAmp, in_s, 'rand', m_noise, m_image, opt, noise_mode)
@@ -376,7 +396,12 @@ def _prepare_discriminator_train_with_fake_input(Gs, NoiseAmp, Zs, epoch, in_s, 
     if is_first_scale:
         noise = noise_
     else:
-        noise_amp = opt.noise_amp1 if noise_mode == NoiseMode.Z1 else opt.noise_amp2
+        if noise_mode == NoiseMode.Z1:
+            noise_amp = opt.noise_amp1
+        elif noise_mode == NoiseMode.Z2:
+            noise_amp = opt.noise_amp2
+        else:
+            noise_amp = 1  # todo: implement
         noise = noise_amp * noise_ + prev
     return in_s, noise, prev, z_prev
 
@@ -469,7 +494,7 @@ def _create_noise_for_draw_concat(opt, count, pad_noise, m_noise, Z_opt, noise_m
     return z
 
 
-def init_models(opt) -> "Tuple[models.WDiscriminator, models.WDiscriminator, models.GeneratorConcatSkip2CleanAdd]":
+def init_models(opt) -> "Tuple[models.WDiscriminator, models.WDiscriminator, models.WDiscriminator, models.GeneratorConcatSkip2CleanAdd]":
 
     #generator initialization:
     netG = models.GeneratorConcatSkip2CleanAdd(opt).to(opt.device)
@@ -492,4 +517,11 @@ def init_models(opt) -> "Tuple[models.WDiscriminator, models.WDiscriminator, mod
         netD2.load_state_dict(torch.load(opt.netD2))
     logger.info(netD2)
 
-    return netD1, netD2, netG
+    # discriminator initialization for mixed image:
+    netD_mixed = models.WDiscriminator(opt).to(opt.device)
+    netD_mixed.apply(models.weights_init)
+    if opt.netD_mixed != '':
+        netD_mixed.load_state_dict(torch.load(opt.netD_mixed))
+    logger.info(netD_mixed)
+
+    return netD1, netD2, netD_mixed, netG

@@ -202,10 +202,11 @@ def read_image2np(opt):
     x = x[:, :, 0:3]
     return x
 
-def save_networks(netG,netD1, netD2,z1, z2,opt):
+def save_networks(netG,netD1, netD2, D_mixed_curr,z1, z2,opt):
     torch.save(netG.state_dict(), '%s/netG.pth' % (opt.outf))
     torch.save(netD1.state_dict(), '%s/netD1.pth' % (opt.outf))
     torch.save(netD2.state_dict(), '%s/netD2.pth' % (opt.outf))
+    torch.save(D_mixed_curr.state_dict(), '%s/netD_mixed.pth' % (opt.outf))
     torch.save(z1, '%s/z_opt1.pth' % (opt.outf))
     torch.save(z2, '%s/z_opt2.pth' % (opt.outf))
 
