@@ -421,6 +421,7 @@ def draw_concat(Gs, Zs, reals, NoiseAmp, in_s, mode, m_noise, m_image, opt, nois
                     z2 = _create_noise_for_draw_concat(opt, count, pad_noise, m_noise, Z_opt2, noise_mode)
                 else:
                     raise NotImplementedError
+
                 z = functions.merge_noise_vectors(z1, z2, opt.noise_vectors_merge_method)
                 G_z = G_z[:,:,0:real_curr.shape[2],0:real_curr.shape[3]]
                 G_z = m_image(G_z)
@@ -434,7 +435,18 @@ def draw_concat(Gs, Zs, reals, NoiseAmp, in_s, mode, m_noise, m_image, opt, nois
             for G,(Z_opt1, Z_opt2),real_curr,real_next,noise_amp in zip(Gs,Zs,reals,reals[1:],NoiseAmp):
                 G_z = G_z[:, :, 0:real_curr.shape[2], 0:real_curr.shape[3]]
                 G_z = m_image(G_z)
-                Z_opt = functions.merge_noise_vectors(Z_opt1, Z_opt2, opt.noise_vectors_merge_method)
+
+                if noise_mode == NoiseMode.Z1:
+                    Z_opt2_zeros = torch.zeros(Z_opt2.shape, device=opt.device)
+                    Z_opt = functions.merge_noise_vectors(Z_opt1, Z_opt2_zeros, opt.noise_vectors_merge_method)
+                elif noise_mode == NoiseMode.Z2:
+                    Z_opt1_zeros = torch.zeros(Z_opt1.shape, device=opt.device)
+                    Z_opt = functions.merge_noise_vectors(Z_opt1_zeros, Z_opt2, opt.noise_vectors_merge_method)
+                elif noise_mode == NoiseMode.MIXED:
+                    Z_opt = functions.merge_noise_vectors(Z_opt1, Z_opt2, opt.noise_vectors_merge_method)
+                else:
+                    raise NotImplementedError
+
                 z_in = noise_amp*Z_opt+G_z
                 G_z = G(z_in.detach(),G_z)
                 G_z = imresize(G_z,1/opt.scale_factor,opt)
