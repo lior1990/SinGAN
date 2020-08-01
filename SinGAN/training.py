@@ -61,7 +61,7 @@ def train(opt,Gs,Zs,reals1, reals2,NoiseAmp):
         logger.info(f"Starting to train scale {scale_num}. Mixed imgs status: {mixed_imgs_training}")
         z_curr_tuple, in_s_tuple, G_curr = train_single_scale(D1_curr, D2_curr, D_mixed_curr,G_curr,reals1, reals2,Gs,Zs,in_s1, in_s2, in_s_mixed,NoiseAmp,opt,
                                                               mixed_imgs_training=mixed_imgs_training)
-        in_s1, in_s2 = in_s_tuple
+        in_s1, in_s2, in_s_mixed = in_s_tuple
         logger.info(f"Done training scale {scale_num}")
 
         G_curr = functions.reset_grads(G_curr,False)
@@ -317,7 +317,7 @@ def train_single_scale(netD1, netD2, netD_mixed,netG,reals1, reals2,Gs,Zs,in_s1,
                                     err_D1_2plot, err_D2_2plot],
                                    ["G_total_loss", "G_total_loss1", "G_total_loss2", "D1_total_loss", "D2_total_loss"],
                                    opt.outf)
-    return (z_opt1, z_opt2), (in_s1, in_s2), netG
+    return (z_opt1, z_opt2), (in_s1, in_s2, in_s_mixed), netG
 
 
 def _generator_train_with_fake(fake, netD):
