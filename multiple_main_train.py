@@ -6,7 +6,7 @@ from main_train import main, parse_arguments
 CONFIGURATIONS = {"scale_factor": [0.75, 0.85],
                   "mixed_imgs_training": [True, False],
                   "noise_vectors_merge_method": ["sum", "cat"],
-                  "gaussian_noise_z_distance": [0,1,2],
+                  "gaussian_noise_z_distance": [1,2],
                   "alpha": [10, 20]}
 
 
