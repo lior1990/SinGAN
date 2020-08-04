@@ -24,14 +24,22 @@ def _configure_logger(dir2save):
     logger.addHandler(stream_handler)
 
 
-if __name__ == '__main__':
+def _cleanup_logger():
+    list(map(logger.removeHandler, logger.handlers))
+
+
+def parse_arguments(namespace=None):
     parser = get_arguments()
     parser.add_argument('--input_dir', help='input image dir', default='Input/Images')
     parser.add_argument('--input_name1', help='input image name 1', required=True)
     parser.add_argument('--input_name2', help='input image name 2', required=True)
     parser.add_argument('--mode', help='task to be done', default='train')
-    opt = parser.parse_args()
+    opt = parser.parse_args(namespace=namespace)
     opt = functions.post_config(opt)
+    return opt
+
+
+def main(opt, generate=True):
     Gs = []
     Zs: List[Tuple] = []
     reals1 = []
@@ -59,4 +67,11 @@ if __name__ == '__main__':
         functions.adjust_scales2image(real2, opt)
         train(opt, Gs, Zs, reals1, reals2, NoiseAmp)
         logger.info("Done training")
-        SinGAN_generate(Gs,Zs,reals1, reals2,NoiseAmp,opt)
+        if generate:
+            logger.info("Generating random samples")
+            SinGAN_generate(Gs,Zs,reals1, reals2,NoiseAmp,opt)
+        _cleanup_logger()
+
+
+if __name__ == '__main__':
+    main(parse_arguments())

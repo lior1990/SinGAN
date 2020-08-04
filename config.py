@@ -45,9 +45,8 @@ def get_arguments():
     parser.add_argument('--alpha',type=float, help='reconstruction loss weight',default=10)
 
     # New parameters:
-    parser.add_argument("--mixed_imgs_starting_scale", type=int, default=3,
-                        help="When training with 2 images:"
-                             "choose the starting scale where we start to generate mixed images in the training")
+    parser.add_argument("--mixed_imgs_training", type=bool, default=True,
+                        help="Boolean indicates whether to train on mixed image")
     # we might want to give different regularization loss for one image over the other,
     # if one has more strong characteristics we want to preserve (like background)
     parser.add_argument("--D_img1_regularization_loss", type=float, default=2,
@@ -62,4 +61,6 @@ def get_arguments():
     parser.add_argument("--exp_name", type=str, default="default_exp",
                         help="Unique experiment name"
                         )
+    parser.add_argument("--gaussian_noise_z_distance", type=int, default=1,
+                        help="Distance between z1 and z2 gaussians")
     return parser
