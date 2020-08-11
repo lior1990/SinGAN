@@ -16,6 +16,7 @@ from SinGAN.imresize import imresize
 import os
 import random
 from sklearn.cluster import KMeans
+from math import floor
 
 
 class NoiseMode(Enum):
@@ -85,11 +86,27 @@ def generate_noise(size,num_samp=1,device='cuda',type='gaussian', scale=1, noise
                    gaussian_noise_z_distance=1
                    ):
     if type == 'gaussian':
-        noise = torch.randn(num_samp, size[0], round(size[1]/scale), round(size[2]/scale), device=device)
-        if noise_mode == NoiseMode.Z1:
-            noise += gaussian_noise_z_distance
-        elif noise_mode == NoiseMode.Z2:
-            noise -= gaussian_noise_z_distance
+        if noise_mode:
+            single_noise_dimension = floor(size[0]/2)
+            common_noise_dimension = size[0] - 2 * single_noise_dimension
+            assert common_noise_dimension > 0
+            common_noise = torch.randn(num_samp, common_noise_dimension, round(size[1]/scale), round(size[2]/scale), device=device)
+            zero_noise = torch.zeros(num_samp, single_noise_dimension, round(size[1]/scale), round(size[2]/scale), device=device)
+            single_noise = torch.randn(num_samp, single_noise_dimension, round(size[1]/scale), round(size[2]/scale), device=device)
+            if noise_mode == NoiseMode.Z1:
+                common_noise += gaussian_noise_z_distance
+                noise = torch.cat([single_noise, common_noise, zero_noise], dim=1)
+            elif noise_mode == NoiseMode.Z2:
+                common_noise -= gaussian_noise_z_distance
+                noise = torch.cat([zero_noise, common_noise, single_noise], dim=1)
+            elif noise_mode == NoiseMode.MIXED:
+                noise = torch.randn(num_samp, size[0], round(size[1]/scale), round(size[2]/scale), device=device)
+            else:
+                raise NotImplementedError
+
+        else:
+            noise = torch.randn(num_samp, size[0], round(size[1] / scale), round(size[2] / scale), device=device)
+
         noise = upsampling(noise,size[1], size[2])
     if type =='gaussian_mixture':
         noise1 = torch.randn(num_samp, size[0], size[1], size[2], device=device)+5
