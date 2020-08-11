@@ -264,7 +264,8 @@ def generate_dir2save(opt):
     dir_name = f"{opt.input_name1[:-4]}_{opt.input_name2[:-4]}"
 
     if (opt.mode == 'train') | (opt.mode == 'SR_train'):
-        dir2save = os.path.join("TrainedModels", dir_name, f"scale_factor={opt.scale_factor_init},alpha={opt.alpha}", opt.exp_name)
+        alpha = int(opt.alpha) if int(opt.alpha) == float(opt.alpha) else opt.alpha
+        dir2save = os.path.join("TrainedModels", dir_name, f"scale_factor={opt.scale_factor_init},alpha={alpha}", opt.exp_name)
     elif (opt.mode == 'animation_train') :
         dir2save = 'TrainedModels/%s/scale_factor=%f_noise_padding' % (opt.input_name[:-4], opt.scale_factor_init)
     elif (opt.mode == 'paint_train') :
