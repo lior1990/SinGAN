@@ -28,6 +28,7 @@ def train(opt,Gs,Zs,reals1, reals2,NoiseAmp):
 
     reals1 = get_reals(reals1, opt, opt.input_name1)
     reals2 = get_reals(reals2, opt, opt.input_name2)
+    masked_reals2 = get_reals(reals2, opt, f"masked_{opt.input_name2}")
     in_s1 = 0
     in_s2 = 0
     in_s_mixed = 0
@@ -49,6 +50,7 @@ def train(opt,Gs,Zs,reals1, reals2,NoiseAmp):
         #plt.imsave('%s/original.png' %  (opt.out_), functions.convert_image_np(real_), vmin=0, vmax=1)
         plt.imsave('%s/real_scale1.png' %  (opt.outf), functions.convert_image_np(reals1[scale_num]), vmin=0, vmax=1)
         plt.imsave('%s/real_scale2.png' % (opt.outf), functions.convert_image_np(reals2[scale_num]), vmin=0, vmax=1)
+        plt.imsave('%s/masked_real_scale2.png' % (opt.outf), functions.convert_image_np(masked_reals2[scale_num]), vmin=0, vmax=1)
 
         D1_curr, D2_curr, D_mixed_curr, G_curr = init_models(opt)
         if (nfc_prev==opt.nfc):
@@ -59,7 +61,7 @@ def train(opt,Gs,Zs,reals1, reals2,NoiseAmp):
 
         mixed_imgs_training = bool(scale_num >= opt.stop_scale/2) if opt.mixed_imgs_training else False
         logger.info(f"Starting to train scale {scale_num}. Mixed imgs status: {mixed_imgs_training}")
-        z_curr_tuple, in_s_tuple, G_curr = train_single_scale(D1_curr, D2_curr, D_mixed_curr,G_curr,reals1, reals2,Gs,Zs,in_s1, in_s2, in_s_mixed,NoiseAmp,opt,
+        z_curr_tuple, in_s_tuple, G_curr = train_single_scale(D1_curr, D2_curr, D_mixed_curr,G_curr,reals1, reals2, masked_reals2,Gs,Zs,in_s1, in_s2, in_s_mixed,NoiseAmp,opt,
                                                               mixed_imgs_training=mixed_imgs_training)
         in_s1, in_s2, in_s_mixed = in_s_tuple
         logger.info(f"Done training scale {scale_num}")
@@ -90,10 +92,11 @@ def train(opt,Gs,Zs,reals1, reals2,NoiseAmp):
 
 
 
-def train_single_scale(netD1, netD2, netD_mixed,netG,reals1, reals2,Gs,Zs,in_s1, in_s2, in_s_mixed,NoiseAmp,opt, mixed_imgs_training=False):
+def train_single_scale(netD1, netD2, netD_mixed,netG,reals1, reals2, masked_reals2,Gs,Zs,in_s1, in_s2, in_s_mixed,NoiseAmp,opt, mixed_imgs_training=False):
 
     real1 = reals1[len(Gs)]
     real2 = reals2[len(Gs)]
+    masked_real2 = masked_reals2[len(Gs)]
 
     # assumption: the images are the same size
     opt.nzx = real1.shape[2]#+(opt.ker_size-1)*(opt.num_layer)
@@ -162,11 +165,13 @@ def train_single_scale(netD1, netD2, netD_mixed,netG,reals1, reals2,Gs,Zs,in_s1,
 
             errD1_real, D1_x1 = discriminator_train_with_real(netD1, opt, real1)
             errD2_real, D2_x2 = discriminator_train_with_real(netD2, opt, real2)
+            errD2_real, D2_x2 = discriminator_train_with_real(netD2, opt, masked_real2)
 
             if mixed_imgs_training:
                 # train mixed on both
                 errD_mixed_real1, D_mixed_x1 = discriminator_train_with_real(netD_mixed, opt, real1)
                 errD_mixed_real2, D_mixed_x2 = discriminator_train_with_real(netD_mixed, opt, real2)
+                _, _ = discriminator_train_with_real(netD_mixed, opt, masked_real2)
 
 
             # train with fake
@@ -249,12 +254,8 @@ def train_single_scale(netD1, netD2, netD_mixed,netG,reals1, reals2,Gs,Zs,in_s1,
                 errG_mixed = -output.mean()
                 errG_mixed.backward(retain_graph=True)
 
-                if torch.rand(1) < 0.5:
-                    _reconstruction_loss(alpha/2, netG, opt, z_opt_mixed, z_prev_mixed, real1, NoiseMode.MIXED)
-                    _, Z_opt_mixed = _reconstruction_loss(alpha/2, netG, opt, z_opt_mixed, z_prev_mixed, real2, NoiseMode.MIXED)
-                else:
-                    _reconstruction_loss(alpha/2, netG, opt, z_opt_mixed, z_prev_mixed, real2, NoiseMode.MIXED)
-                    _, Z_opt_mixed = _reconstruction_loss(alpha/2, netG, opt, z_opt_mixed, z_prev_mixed, real1, NoiseMode.MIXED)
+                _reconstruction_loss(alpha, netG, opt, z_opt_mixed, z_prev_mixed, masked_real2, NoiseMode.MIXED)
+                _, Z_opt_mixed = _reconstruction_loss(alpha, netG, opt, z_opt_mixed, z_prev_mixed, real1, NoiseMode.MIXED)
 
             optimizerG.step()
 
