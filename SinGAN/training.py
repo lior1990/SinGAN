@@ -166,7 +166,7 @@ def train_single_scale(netD1, netD2, netD_mixed,netG,reals1, reals2, masked_real
 
             errD1_real, D1_x1 = discriminator_train_with_real(netD1, opt, real1)
             errD2_real, D2_x2 = discriminator_train_with_real(netD2, opt, real2)
-            errD2_real, D2_x2 = discriminator_train_with_real(netD2, opt, masked_real2)
+            # errD2_real, D2_x2 = discriminator_train_with_real(netD2, opt, masked_real2)
 
             if mixed_imgs_training:
                 # train mixed on both
