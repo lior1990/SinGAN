@@ -16,19 +16,20 @@ from SinGAN.imresize import imresize
 logger = logging.getLogger()
 
 
-def get_reals(reals, opt, image_name):
+def get_reals(reals, opt, image_name, regular_resize=False):
     real_ = functions.read_image(opt, image_name)
     real = imresize(real_,opt.scale1,opt)
-    reals = functions.creat_reals_pyramid(real,reals,opt)
+    reals = functions.creat_reals_pyramid(real,reals,opt, regular_resize)
     return reals
 
 
 def train(opt,Gs,Zs,reals1, reals2,NoiseAmp):
     logger.info("Starting to train...")
 
+    masked_reals2 = []
     reals1 = get_reals(reals1, opt, opt.input_name1)
     reals2 = get_reals(reals2, opt, opt.input_name2)
-    masked_reals2 = get_reals(reals2, opt, f"masked_{opt.input_name2}")
+    masked_reals2 = get_reals(masked_reals2, opt, f"masked_{opt.input_name2}", regular_resize=True)
     in_s1 = 0
     in_s2 = 0
     in_s_mixed = 0
@@ -254,7 +255,7 @@ def train_single_scale(netD1, netD2, netD_mixed,netG,reals1, reals2, masked_real
                 errG_mixed = -output.mean()
                 errG_mixed.backward(retain_graph=True)
 
-                _reconstruction_loss(alpha, netG, opt, z_opt_mixed, z_prev_mixed, masked_real2, NoiseMode.MIXED)
+                _reconstruction_loss(alpha, netG, opt, z_opt_mixed, z_prev_mixed, masked_real2, NoiseMode.MIXED, mask=masked_real2)
                 _, Z_opt_mixed = _reconstruction_loss(alpha, netG, opt, z_opt_mixed, z_prev_mixed, real1, NoiseMode.MIXED)
 
             optimizerG.step()
@@ -340,7 +341,7 @@ def _generator_train_with_fake(fake, netD):
     return errG
 
 
-def _reconstruction_loss(alpha, netG, opt, z_opt, z_prev, real, noise_mode: NoiseMode):
+def _reconstruction_loss(alpha, netG, opt, z_opt, z_prev, real, noise_mode: NoiseMode, mask=None):
     if alpha != 0:
         # reconstruction loss calculation
         loss = nn.MSELoss()
@@ -354,7 +355,11 @@ def _reconstruction_loss(alpha, netG, opt, z_opt, z_prev, real, noise_mode: Nois
         else:
             pass
 
-        rec_loss = alpha * loss(netG(Z_opt.detach(), z_prev), real)
+        fake = netG(Z_opt.detach(), z_prev)
+        if mask is not None:
+            fake = fake * mask
+
+        rec_loss = alpha * loss(fake, real)
         rec_loss.backward(retain_graph=True)
         rec_loss = rec_loss.detach()
     else:
