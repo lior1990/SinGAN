@@ -25,6 +25,7 @@ class NoiseMode(Enum):
     Z1 = 1
     Z2 = 2
     MIXED = 3
+    BACKGROUND = 4
 
 
 # custom weights initialization called on netG and netD
@@ -101,6 +102,8 @@ def generate_noise(size,num_samp=1,device='cuda',type='gaussian', scale=1, noise
             elif noise_mode == NoiseMode.Z2:
                 common_noise -= gaussian_noise_z_distance
                 noise = torch.cat([zero_noise, common_noise, single_noise], dim=1)
+            elif noise_mode == NoiseMode.BACKGROUND:
+                noise = torch.cat([zero_noise, common_noise, zero_noise], dim=1)
             elif noise_mode == NoiseMode.MIXED:
                 noise = torch.randn(num_samp, size[0], round(size[1]/scale), round(size[2]/scale), device=device)
             else:
@@ -223,7 +226,7 @@ def read_image2np(opt):
     x = x[:, :, 0:3]
     return x
 
-def save_networks(netG,netD1, netD2, D_mixed_curr,z1, z2,opt):
+def save_networks(netG,netD1, netD2, D_mixed_curr,z1, z2, opt):
     torch.save(netG.state_dict(), '%s/netG.pth' % (opt.outf))
     torch.save(netD1.state_dict(), '%s/netD1.pth' % (opt.outf))
     torch.save(netD2.state_dict(), '%s/netD2.pth' % (opt.outf))

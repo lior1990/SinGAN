@@ -27,9 +27,11 @@ def train(opt,Gs,Zs,reals1, reals2,NoiseAmp):
     logger.info("Starting to train...")
 
     masked_reals2 = []
+    background_reals1 = []
     reals1 = get_reals(reals1, opt, opt.input_name1)
     reals2 = get_reals(reals2, opt, opt.input_name2)
     masked_reals2 = get_reals(masked_reals2, opt, f"masked_{opt.input_name2}", regular_resize=True)
+    background_reals1 = get_reals(background_reals1, opt, f"background_{opt.input_name1}", regular_resize=True)
     in_s1 = 0
     in_s2 = 0
     in_s_mixed = 0
@@ -62,9 +64,9 @@ def train(opt,Gs,Zs,reals1, reals2,NoiseAmp):
 
         mixed_imgs_training = bool(scale_num >= opt.stop_scale/2) if opt.mixed_imgs_training else False
         logger.info(f"Starting to train scale {scale_num}. Mixed imgs status: {mixed_imgs_training}")
-        z_curr_tuple, in_s_tuple, G_curr = train_single_scale(D1_curr, D2_curr, D_mixed_curr,G_curr,reals1, reals2, masked_reals2,Gs,Zs,in_s1, in_s2, in_s_mixed,NoiseAmp,opt,
+        z_curr_tuple, in_s_tuple, G_curr = train_single_scale(D1_curr, D2_curr, D_mixed_curr,G_curr,reals1, reals2, background_reals1, masked_reals2,Gs,Zs,in_s1, in_s2, in_s_mixed,NoiseAmp,opt,
                                                               mixed_imgs_training=mixed_imgs_training)
-        in_s1, in_s2, in_s_mixed = in_s_tuple
+        in_s1, in_s2, in_s_mixed, in_s_bg = in_s_tuple
         logger.info(f"Done training scale {scale_num}")
 
         G_curr = functions.reset_grads(G_curr,False)
@@ -93,11 +95,14 @@ def train(opt,Gs,Zs,reals1, reals2,NoiseAmp):
 
 
 
-def train_single_scale(netD1, netD2, netD_mixed,netG,reals1, reals2, masked_reals2,Gs,Zs,in_s1, in_s2, in_s_mixed,NoiseAmp,opt, mixed_imgs_training=False):
+def train_single_scale(netD1, netD2, netD_mixed,netG,reals1, reals2, background_reals1, masked_reals2,Gs,Zs,in_s1, in_s2, in_s_mixed,NoiseAmp,opt, mixed_imgs_training=False):
 
     real1 = reals1[len(Gs)]
     real2 = reals2[len(Gs)]
     masked_real2 = masked_reals2[len(Gs)]
+    background_real1 = background_reals1[len(Gs)]
+
+    assert (masked_real2[0][0] == masked_real2[0][1]).all().all() and (masked_real2[0][1] == masked_real2[0][2]).all().all()
 
     # assumption: the images are the same size
     opt.nzx = real1.shape[2]#+(opt.ker_size-1)*(opt.num_layer)
@@ -152,6 +157,7 @@ def train_single_scale(netD1, netD2, netD_mixed,netG,reals1, reals2, masked_real
         noise1_, z_opt1 = _create_noise_for_iteration(is_first_scale, m_noise, opt, z_opt, NoiseMode.Z1)
         noise2_, z_opt2 = _create_noise_for_iteration(is_first_scale, m_noise, opt, z_opt, NoiseMode.Z2)
         noise_mixed_, z_opt_mixed = _create_noise_for_iteration(is_first_scale, m_noise, opt, z_opt, NoiseMode.MIXED)
+        noise_bg_, z_opt_bg = _create_noise_for_iteration(is_first_scale, m_noise, opt, z_opt, NoiseMode.BACKGROUND)
 
         ############################
         # (1) Update D networks:
@@ -175,6 +181,7 @@ def train_single_scale(netD1, netD2, netD_mixed,netG,reals1, reals2, masked_real
                 errD_mixed_real1, D_mixed_x1 = discriminator_train_with_real(netD_mixed, opt, real1)
                 errD_mixed_real2, D_mixed_x2 = discriminator_train_with_real(netD_mixed, opt, real2)
                 _, _ = discriminator_train_with_real(netD_mixed, opt, masked_real2)
+            _, _ = discriminator_train_with_real(netD_mixed, opt, background_real1)
 
 
             # train with fake
@@ -193,6 +200,11 @@ def train_single_scale(netD1, netD2, netD_mixed,netG,reals1, reals2, masked_real
                                                                                              m_image, m_noise, noise_mixed_,
                                                                                              opt, real2, reals2,
                                                                                              NoiseMode.MIXED)
+            in_s_bg, noise_bg, prev_bg, new_z_prev_bg = _prepare_discriminator_train_with_fake_input(Gs, NoiseAmp, Zs, epoch,
+                                                                                             in_s_mixed, is_first_scale, j,
+                                                                                             m_image, m_noise, noise_bg_,
+                                                                                             opt, background_real1, background_reals1,
+                                                                                             NoiseMode.BACKGROUND)
 
             if new_z_prev1 is not None:
                 z_prev1 = new_z_prev1
@@ -200,6 +212,8 @@ def train_single_scale(netD1, netD2, netD_mixed,netG,reals1, reals2, masked_real
                 z_prev2 = new_z_prev2
             if new_z_prev_mixed is not None:
                 z_prev_mixed = new_z_prev_mixed
+            if new_z_prev_bg is not None:
+                z_prev_bg = new_z_prev_bg
 
             # Z1 only:
             mixed_noise1 = functions.merge_noise_vectors(noise1, torch.zeros(noise1.shape, device=opt.device),
@@ -217,17 +231,17 @@ def train_single_scale(netD1, netD2, netD_mixed,netG,reals1, reals2, masked_real
             errD2 = errD2_real + errD2_fake + gradient_penalty2
 
             if mixed_imgs_training:
-                # noise = functions.merge_noise_vectors(noise1, noise2, opt.noise_vectors_merge_method)
-                # # todo: decide which prev should use for mixed
-                # prev = prev1 if torch.rand(1) < 0.5 else prev2
                 mixed_fake = netG(noise_mixed.detach(), prev_mixed)
                 output = netD_mixed(mixed_fake.detach())
                 errD_mixed_fake = output.mean()
-                # output1 = netD1(mixed_fake.detach())
-                # output2 = netD2(mixed_fake.detach())
-                # errD_mixed_fake = (opt.D_img1_regularization_loss * output1 + opt.D_img2_regularization_loss * output2).mean()
                 errD_mixed_fake.backward(retain_graph=True)
                 D_mixed_G_z = errD_mixed_fake.item()
+
+            bg_fake = netG(noise_bg.detach(), prev_bg)
+            bg_output = netD_mixed(bg_fake.detach())
+            errD_bg_fake = bg_output.mean()
+            errD_bg_fake.backward(retain_graph=True)
+            D_bg_G_z = errD_bg_fake.item()
 
             optimizerD1.step()
             optimizerD2.step()
@@ -261,6 +275,11 @@ def train_single_scale(netD1, netD2, netD_mixed,netG,reals1, reals2, masked_real
                 _reconstruction_loss(alpha, netG, opt, z_opt_mixed, z_prev_mixed, masked_real2, NoiseMode.MIXED, mask=masked_real2)
                 _, Z_opt_mixed = _reconstruction_loss(alpha, netG, opt, z_opt_mixed, z_prev_mixed, real1, NoiseMode.MIXED)
 
+            bg_output = netD_mixed(bg_fake)
+            errG_bg = -bg_output.mean()
+            errG_bg.backward(retain_graph=True)
+            _, Z_opt_bg = _reconstruction_loss(alpha, netG, opt, z_opt_bg, z_prev_bg, background_real1, NoiseMode.BACKGROUND)
+
             optimizerG.step()
 
         errG_total_loss1_2plot.append(errG1.detach()+rec_loss1)
@@ -290,6 +309,10 @@ def train_single_scale(netD1, netD2, netD_mixed,netG,reals1, reals2, masked_real
                 plt.imsave('%s/fake_sample_mixed.png' % (opt.outf), functions.convert_image_np(mixed_fake.detach()), vmin=0, vmax=1)
                 plt.imsave('%s/G(z_opt_mixed).png' % (opt.outf),
                            functions.convert_image_np(netG(Z_opt_mixed.detach(), z_prev_mixed).detach()), vmin=0, vmax=1)
+
+            plt.imsave('%s/fake_sample_bg.png' % (opt.outf), functions.convert_image_np(bg_fake.detach()), vmin=0, vmax=1)
+            plt.imsave('%s/G(z_opt_bg).png' % (opt.outf),
+                           functions.convert_image_np(netG(Z_opt_bg.detach(), z_prev_bg).detach()), vmin=0, vmax=1)
             plt.imsave('%s/G(z_opt1).png'    % (opt.outf),
                        functions.convert_image_np(netG(Z_opt1.detach(), z_prev1).detach()), vmin=0, vmax=1)
             plt.imsave('%s/G(z_opt2).png' % (opt.outf),
@@ -335,7 +358,7 @@ def train_single_scale(netD1, netD2, netD_mixed,netG,reals1, reals2, masked_real
                                     err_D1_2plot, err_D2_2plot],
                                    ["G_total_loss", "G_total_loss1", "G_total_loss2", "D1_total_loss", "D2_total_loss"],
                                    opt.outf)
-    return (z_opt1, z_opt2), (in_s1, in_s2, in_s_mixed), netG
+    return (z_opt1, z_opt2, z_opt_bg), (in_s1, in_s2, in_s_mixed, in_s_bg), netG
 
 
 def _generator_train_with_fake(fake, netD):
@@ -392,7 +415,7 @@ def _prepare_discriminator_train_with_fake_input(Gs, NoiseAmp, Zs, epoch, in_s, 
             prev = m_image(prev)
             z_prev = torch.full([1, opt.nc_z, opt.nzx, opt.nzy], 0, device=opt.device)
             z_prev = m_noise(z_prev)
-            if noise_mode == NoiseMode.Z1:
+            if noise_mode in [NoiseMode.Z1, NoiseMode.BACKGROUND]:
                 opt.noise_amp1 = 1
             elif noise_mode == NoiseMode.Z2:
                 opt.noise_amp2 = 1
@@ -418,7 +441,7 @@ def _prepare_discriminator_train_with_fake_input(Gs, NoiseAmp, Zs, epoch, in_s, 
     if is_first_scale:
         noise = noise_
     else:
-        if noise_mode == NoiseMode.Z1:
+        if noise_mode in [NoiseMode.Z1, NoiseMode.BACKGROUND]:
             noise_amp = opt.noise_amp1
         elif noise_mode == NoiseMode.Z2:
             noise_amp = opt.noise_amp2
@@ -459,7 +482,7 @@ def draw_concat(Gs, Zs, reals, NoiseAmp, in_s, mode, m_noise, m_image, opt, nois
         if mode == 'rand':
             count = 0
             pad_noise = int(((opt.ker_size-1)*opt.num_layer)/2)
-            for G,(Z_opt1, Z_opt2),real_curr,real_next,noise_amp in zip(Gs,Zs,reals,reals[1:],NoiseAmp):
+            for G,(Z_opt1, Z_opt2, Z_opt_bg),real_curr,real_next,noise_amp in zip(Gs,Zs,reals,reals[1:],NoiseAmp):
                 if noise_mode == NoiseMode.Z1:
                     z1 = _create_noise_for_draw_concat(opt, count, pad_noise, m_noise, Z_opt1, noise_mode)
                     z2 = torch.zeros(z1.shape, device=opt.device)
@@ -469,10 +492,14 @@ def draw_concat(Gs, Zs, reals, NoiseAmp, in_s, mode, m_noise, m_image, opt, nois
                 elif noise_mode == NoiseMode.MIXED:
                     z1 = _create_noise_for_draw_concat(opt, count, pad_noise, m_noise, Z_opt1, noise_mode)
                     z2 = _create_noise_for_draw_concat(opt, count, pad_noise, m_noise, Z_opt2, noise_mode)
+                elif noise_mode == NoiseMode.BACKGROUND:
+                    z = _create_noise_for_draw_concat(opt, count, pad_noise, m_noise, Z_opt_bg, noise_mode)
                 else:
                     raise NotImplementedError
 
-                z = functions.merge_noise_vectors(z1, z2, opt.noise_vectors_merge_method)
+                if noise_mode != NoiseMode.BACKGROUND:
+                    z = functions.merge_noise_vectors(z1, z2, opt.noise_vectors_merge_method)
+
                 G_z = G_z[:,:,0:real_curr.shape[2],0:real_curr.shape[3]]
                 G_z = m_image(G_z)
                 z_in = noise_amp*z+G_z
@@ -482,7 +509,7 @@ def draw_concat(Gs, Zs, reals, NoiseAmp, in_s, mode, m_noise, m_image, opt, nois
                 count += 1
         if mode == 'rec':
             count = 0
-            for G,(Z_opt1, Z_opt2),real_curr,real_next,noise_amp in zip(Gs,Zs,reals,reals[1:],NoiseAmp):
+            for G,(Z_opt1, Z_opt2, Z_opt_bg),real_curr,real_next,noise_amp in zip(Gs,Zs,reals,reals[1:],NoiseAmp):
                 G_z = G_z[:, :, 0:real_curr.shape[2], 0:real_curr.shape[3]]
                 G_z = m_image(G_z)
 
@@ -494,6 +521,8 @@ def draw_concat(Gs, Zs, reals, NoiseAmp, in_s, mode, m_noise, m_image, opt, nois
                     Z_opt = functions.merge_noise_vectors(Z_opt1_zeros, Z_opt2, opt.noise_vectors_merge_method)
                 elif noise_mode == NoiseMode.MIXED:
                     Z_opt = functions.merge_noise_vectors(Z_opt1, Z_opt2, opt.noise_vectors_merge_method)
+                elif noise_mode == NoiseMode.BACKGROUND:
+                    Z_opt = Z_opt_bg
                 else:
                     raise NotImplementedError
 
