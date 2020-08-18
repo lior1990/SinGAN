@@ -118,9 +118,11 @@ def train_single_scale(netD1, netD2, netD_mixed,netG,reals1, reals2, masked_real
     # setup optimizer
     optimizerD1 = optim.Adam(netD1.parameters(), lr=opt.lr_d, betas=(opt.beta1, 0.999))
     optimizerD2 = optim.Adam(netD2.parameters(), lr=opt.lr_d, betas=(opt.beta1, 0.999))
+    optimizerD_mixed = optim.Adam(netD_mixed.parameters(), lr=opt.lr_d, betas=(opt.beta1, 0.999))
     optimizerG = optim.Adam(netG.parameters(), lr=opt.lr_g, betas=(opt.beta1, 0.999))
     schedulerD1 = torch.optim.lr_scheduler.MultiStepLR(optimizer=optimizerD1,milestones=[1600],gamma=opt.gamma)
     schedulerD2 = torch.optim.lr_scheduler.MultiStepLR(optimizer=optimizerD2, milestones=[1600], gamma=opt.gamma)
+    schedulerD_mixed = torch.optim.lr_scheduler.MultiStepLR(optimizer=optimizerD_mixed, milestones=[1600], gamma=opt.gamma)
     schedulerG = torch.optim.lr_scheduler.MultiStepLR(optimizer=optimizerG,milestones=[1600],gamma=opt.gamma)
 
     err_D1_2plot = []
@@ -229,6 +231,7 @@ def train_single_scale(netD1, netD2, netD_mixed,netG,reals1, reals2, masked_real
 
             optimizerD1.step()
             optimizerD2.step()
+            optimizerD_mixed.step()
 
         err_D1_2plot.append(errD1.detach())
         err_D2_2plot.append(errD2.detach())
@@ -304,6 +307,7 @@ def train_single_scale(netD1, netD2, netD_mixed,netG,reals1, reals2, masked_real
 
         schedulerD1.step()
         schedulerD2.step()
+        schedulerD_mixed.step()
         schedulerG.step()
 
     functions.save_networks(netG,netD1, netD2, netD_mixed,z_opt1, z_opt2,opt)
