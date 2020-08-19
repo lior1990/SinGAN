@@ -181,7 +181,7 @@ def train_single_scale(netD1, netD2, netD_mixed,netG,reals1, reals2, background_
                 errD_mixed_real1, D_mixed_x1 = discriminator_train_with_real(netD_mixed, opt, real1)
                 errD_mixed_real2, D_mixed_x2 = discriminator_train_with_real(netD_mixed, opt, real2)
                 _, _ = discriminator_train_with_real(netD_mixed, opt, masked_real2)
-            _, _ = discriminator_train_with_real(netD_mixed, opt, background_real1)
+                _, _ = discriminator_train_with_real(netD_mixed, opt, background_real1)
 
 
             # train with fake
@@ -237,11 +237,11 @@ def train_single_scale(netD1, netD2, netD_mixed,netG,reals1, reals2, background_
                 errD_mixed_fake.backward(retain_graph=True)
                 D_mixed_G_z = errD_mixed_fake.item()
 
-            bg_fake = netG(noise_bg.detach(), prev_bg)
-            bg_output = netD_mixed(bg_fake.detach())
-            errD_bg_fake = bg_output.mean()
-            errD_bg_fake.backward(retain_graph=True)
-            D_bg_G_z = errD_bg_fake.item()
+                bg_fake = netG(noise_bg.detach(), prev_bg)
+                bg_output = netD_mixed(bg_fake.detach())
+                errD_bg_fake = bg_output.mean()
+                errD_bg_fake.backward(retain_graph=True)
+                D_bg_G_z = errD_bg_fake.item()
 
             optimizerD1.step()
             optimizerD2.step()
@@ -275,10 +275,10 @@ def train_single_scale(netD1, netD2, netD_mixed,netG,reals1, reals2, background_
                 _reconstruction_loss(alpha, netG, opt, z_opt_mixed, z_prev_mixed, masked_real2, NoiseMode.MIXED, mask=masked_real2)
                 _, Z_opt_mixed = _reconstruction_loss(alpha, netG, opt, z_opt_mixed, z_prev_mixed, real1, NoiseMode.MIXED)
 
-            bg_output = netD_mixed(bg_fake)
-            errG_bg = -bg_output.mean()
-            errG_bg.backward(retain_graph=True)
-            _, Z_opt_bg = _reconstruction_loss(alpha, netG, opt, z_opt_bg, z_prev_bg, background_real1, NoiseMode.BACKGROUND)
+                bg_output = netD_mixed(bg_fake)
+                errG_bg = -bg_output.mean()
+                errG_bg.backward(retain_graph=True)
+                _, Z_opt_bg = _reconstruction_loss(alpha, netG, opt, z_opt_bg, z_prev_bg, background_real1, NoiseMode.BACKGROUND)
 
             optimizerG.step()
 
@@ -310,8 +310,8 @@ def train_single_scale(netD1, netD2, netD_mixed,netG,reals1, reals2, background_
                 plt.imsave('%s/G(z_opt_mixed).png' % (opt.outf),
                            functions.convert_image_np(netG(Z_opt_mixed.detach(), z_prev_mixed).detach()), vmin=0, vmax=1)
 
-            plt.imsave('%s/fake_sample_bg.png' % (opt.outf), functions.convert_image_np(bg_fake.detach()), vmin=0, vmax=1)
-            plt.imsave('%s/G(z_opt_bg).png' % (opt.outf),
+                plt.imsave('%s/fake_sample_bg.png' % (opt.outf), functions.convert_image_np(bg_fake.detach()), vmin=0, vmax=1)
+                plt.imsave('%s/G(z_opt_bg).png' % (opt.outf),
                            functions.convert_image_np(netG(Z_opt_bg.detach(), z_prev_bg).detach()), vmin=0, vmax=1)
             plt.imsave('%s/G(z_opt1).png'    % (opt.outf),
                        functions.convert_image_np(netG(Z_opt1.detach(), z_prev1).detach()), vmin=0, vmax=1)
