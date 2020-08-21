@@ -122,12 +122,12 @@ def train_single_scale(netD1, netD2, netD_mixed,netG,reals1, reals2, background_
 
     # setup optimizer
     optimizerD1 = optim.Adam(netD1.parameters(), lr=opt.lr_d, betas=(opt.beta1, 0.999))
-    optimizerD2 = optim.Adam(netD2.parameters(), lr=opt.lr_d, betas=(opt.beta1, 0.999))
-    optimizerD_mixed = optim.Adam(netD_mixed.parameters(), lr=opt.lr_d, betas=(opt.beta1, 0.999))
+    # optimizerD2 = optim.Adam(netD2.parameters(), lr=opt.lr_d, betas=(opt.beta1, 0.999))
+    # optimizerD_mixed = optim.Adam(netD_mixed.parameters(), lr=opt.lr_d, betas=(opt.beta1, 0.999))
     optimizerG = optim.Adam(netG.parameters(), lr=opt.lr_g, betas=(opt.beta1, 0.999))
     schedulerD1 = torch.optim.lr_scheduler.MultiStepLR(optimizer=optimizerD1,milestones=[1600],gamma=opt.gamma)
-    schedulerD2 = torch.optim.lr_scheduler.MultiStepLR(optimizer=optimizerD2, milestones=[1600], gamma=opt.gamma)
-    schedulerD_mixed = torch.optim.lr_scheduler.MultiStepLR(optimizer=optimizerD_mixed, milestones=[1600], gamma=opt.gamma)
+    # schedulerD2 = torch.optim.lr_scheduler.MultiStepLR(optimizer=optimizerD2, milestones=[1600], gamma=opt.gamma)
+    # schedulerD_mixed = torch.optim.lr_scheduler.MultiStepLR(optimizer=optimizerD_mixed, milestones=[1600], gamma=opt.gamma)
     schedulerG = torch.optim.lr_scheduler.MultiStepLR(optimizer=optimizerG,milestones=[1600],gamma=opt.gamma)
 
     err_D1_2plot = []
@@ -170,10 +170,10 @@ def train_single_scale(netD1, netD2, netD_mixed,netG,reals1, reals2, background_
         for j in range(opt.Dsteps):
             # train with real
             netD1.zero_grad()
-            netD2.zero_grad()
+            # netD2.zero_grad()
 
             errD1_real, D1_x1 = discriminator_train_with_real(netD1, opt, real1)
-            errD2_real, D2_x2 = discriminator_train_with_real(netD2, opt, real2)
+            errD2_real, D2_x2 = discriminator_train_with_real(netD1, opt, real2)
             # errD2_real, D2_x2 = discriminator_train_with_real(netD2, opt, masked_real2)
 
             if mixed_imgs_training:
@@ -195,25 +195,25 @@ def train_single_scale(netD1, netD2, netD_mixed,netG,reals1, reals2, background_
                                                                                              m_image, m_noise, noise2_,
                                                                                              opt, real2, reals2,
                                                                                              NoiseMode.Z2)
-            in_s_mixed, noise_mixed, prev_mixed, new_z_prev_mixed = _prepare_discriminator_train_with_fake_input(Gs, NoiseAmp, Zs, epoch,
-                                                                                             in_s_mixed, is_first_scale, j,
-                                                                                             m_image, m_noise, noise_mixed_,
-                                                                                             opt, real2, reals2,
-                                                                                             NoiseMode.MIXED)
-            in_s_bg, noise_bg, prev_bg, new_z_prev_bg = _prepare_discriminator_train_with_fake_input(Gs, NoiseAmp, Zs, epoch,
-                                                                                             in_s_mixed, is_first_scale, j,
-                                                                                             m_image, m_noise, noise_bg_,
-                                                                                             opt, background_real1, background_reals1,
-                                                                                             NoiseMode.BACKGROUND)
+            # in_s_mixed, noise_mixed, prev_mixed, new_z_prev_mixed = _prepare_discriminator_train_with_fake_input(Gs, NoiseAmp, Zs, epoch,
+            #                                                                                  in_s_mixed, is_first_scale, j,
+            #                                                                                  m_image, m_noise, noise_mixed_,
+            #                                                                                  opt, real2, reals2,
+            #                                                                                  NoiseMode.MIXED)
+            # in_s_bg, noise_bg, prev_bg, new_z_prev_bg = _prepare_discriminator_train_with_fake_input(Gs, NoiseAmp, Zs, epoch,
+            #                                                                                  in_s_mixed, is_first_scale, j,
+            #                                                                                  m_image, m_noise, noise_bg_,
+            #                                                                                  opt, background_real1, background_reals1,
+            #                                                                                  NoiseMode.BACKGROUND)
 
             if new_z_prev1 is not None:
                 z_prev1 = new_z_prev1
             if new_z_prev2 is not None:
                 z_prev2 = new_z_prev2
-            if new_z_prev_mixed is not None:
-                z_prev_mixed = new_z_prev_mixed
-            if new_z_prev_bg is not None:
-                z_prev_bg = new_z_prev_bg
+            # if new_z_prev_mixed is not None:
+            #     z_prev_mixed = new_z_prev_mixed
+            # if new_z_prev_bg is not None:
+            #     z_prev_bg = new_z_prev_bg
 
             # Z1 only:
             mixed_noise1 = functions.merge_noise_vectors(noise1, torch.zeros(noise1.shape, device=opt.device),
@@ -224,7 +224,7 @@ def train_single_scale(netD1, netD2, netD_mixed,netG,reals1, reals2, background_
             # Z2 only:
             mixed_noise2 = functions.merge_noise_vectors(torch.zeros(noise2.shape, device=opt.device), noise2,
                                                opt.noise_vectors_merge_method)
-            D2_G_z, errD2_fake, gradient_penalty2, fake2 = _train_discriminator_with_fake(netD2, netG, mixed_noise2,
+            D2_G_z, errD2_fake, gradient_penalty2, fake2 = _train_discriminator_with_fake(netD1, netG, mixed_noise2,
                                                                                           opt, prev2, real2)
 
             errD1 = errD1_real + errD1_fake + gradient_penalty1
@@ -244,8 +244,8 @@ def train_single_scale(netD1, netD2, netD_mixed,netG,reals1, reals2, background_
                 D_bg_G_z = errD_bg_fake.item()
 
             optimizerD1.step()
-            optimizerD2.step()
-            optimizerD_mixed.step()
+            # optimizerD2.step()
+            # optimizerD_mixed.step()
 
         err_D1_2plot.append(errD1.detach())
         err_D2_2plot.append(errD2.detach())
@@ -260,7 +260,7 @@ def train_single_scale(netD1, netD2, netD_mixed,netG,reals1, reals2, background_
         for j in range(opt.Gsteps):
             netG.zero_grad()
             errG1 = _generator_train_with_fake(fake1, netD1)
-            errG2 = _generator_train_with_fake(fake2, netD2)
+            errG2 = _generator_train_with_fake(fake2, netD1)
             rec_loss1, Z_opt1 = _reconstruction_loss(alpha, netG, opt, z_opt1, z_prev1, real1, NoiseMode.Z1)
             rec_loss2, Z_opt2 = _reconstruction_loss(alpha, netG, opt, z_opt2, z_prev2, real2, NoiseMode.Z2)
 
@@ -329,8 +329,8 @@ def train_single_scale(netD1, netD2, netD_mixed,netG,reals1, reals2, background_
             torch.save(z_opt2, '%s/z_opt2.pth' % (opt.outf))
 
         schedulerD1.step()
-        schedulerD2.step()
-        schedulerD_mixed.step()
+        # schedulerD2.step()
+        # schedulerD_mixed.step()
         schedulerG.step()
 
     functions.save_networks(netG,netD1, netD2, netD_mixed,z_opt1, z_opt2,opt)
@@ -358,7 +358,7 @@ def train_single_scale(netD1, netD2, netD_mixed,netG,reals1, reals2, background_
                                     err_D1_2plot, err_D2_2plot],
                                    ["G_total_loss", "G_total_loss1", "G_total_loss2", "D1_total_loss", "D2_total_loss"],
                                    opt.outf)
-    return (z_opt1, z_opt2, z_opt_bg), (in_s1, in_s2, in_s_mixed, in_s_bg), netG
+    return (z_opt1, z_opt2, z_opt_bg), (in_s1, in_s2, in_s_mixed, 0), netG
 
 
 def _generator_train_with_fake(fake, netD):
