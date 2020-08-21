@@ -80,7 +80,7 @@ def train(opt,Gs,Zs,reals1, reals2,NoiseAmp):
 
         Gs.append(G_curr)
         Zs.append(z_curr_tuple)
-        NoiseAmp.append(opt.noise_amp)
+        NoiseAmp.append((opt.noise_amp1, opt.noise_amp2))
 
         torch.save(Zs, '%s/Zs.pth' % (opt.out_))
         torch.save(Gs, '%s/Gs.pth' % (opt.out_))
@@ -261,8 +261,8 @@ def train_single_scale(netD1, netD2, netD_mixed,netG,reals1, reals2, background_
             netG.zero_grad()
             errG1 = _generator_train_with_fake(fake1, netD1)
             errG2 = _generator_train_with_fake(fake2, netD1)
-            rec_loss1, Z_opt1 = _reconstruction_loss(alpha, netG, opt, z_opt1, z_prev1, real1, NoiseMode.Z1)
-            rec_loss2, Z_opt2 = _reconstruction_loss(alpha, netG, opt, z_opt2, z_prev2, real2, NoiseMode.Z2)
+            rec_loss1, Z_opt1 = _reconstruction_loss(alpha, netG, opt, z_opt1, z_prev1, real1, NoiseMode.Z1, opt.noise_amp1)
+            rec_loss2, Z_opt2 = _reconstruction_loss(alpha, netG, opt, z_opt2, z_prev2, real2, NoiseMode.Z2, opt.noise_amp2)
 
             if mixed_imgs_training:
                 # output1 = netD1(mixed_fake)
@@ -324,7 +324,8 @@ def train_single_scale(netD1, netD2, netD_mixed,netG,reals1, reals2, background_
             #plt.imsave('%s/noise.png'    %  (opt.outf), functions.convert_image_np(noise), vmin=0, vmax=1)
             #plt.imsave('%s/z_prev.png'   % (opt.outf), functions.convert_image_np(z_prev), vmin=0, vmax=1)
 
-
+            torch.save((mixed_noise1, prev1), '%s/fake1_noise_source.pth' % (opt.outf))
+            torch.save((mixed_noise2, prev2), '%s/fake2_noise_source.pth' % (opt.outf))
             torch.save(z_opt1, '%s/z_opt1.pth' % (opt.outf))
             torch.save(z_opt2, '%s/z_opt2.pth' % (opt.outf))
 
@@ -368,11 +369,11 @@ def _generator_train_with_fake(fake, netD):
     return errG
 
 
-def _reconstruction_loss(alpha, netG, opt, z_opt, z_prev, real, noise_mode: NoiseMode, mask=None):
+def _reconstruction_loss(alpha, netG, opt, z_opt, z_prev, real, noise_mode: NoiseMode, noise_amp: float, mask=None):
     if alpha != 0:
         # reconstruction loss calculation
         loss = nn.MSELoss()
-        Z_opt = opt.noise_amp * z_opt + z_prev
+        Z_opt = noise_amp * z_opt + z_prev
         z_zero = torch.zeros(Z_opt.shape, device=opt.device)
 
         if noise_mode.Z1:
@@ -482,13 +483,17 @@ def draw_concat(Gs, Zs, reals, NoiseAmp, in_s, mode, m_noise, m_image, opt, nois
         if mode == 'rand':
             count = 0
             pad_noise = int(((opt.ker_size-1)*opt.num_layer)/2)
-            for G,(Z_opt1, Z_opt2, Z_opt_bg),real_curr,real_next,noise_amp in zip(Gs,Zs,reals,reals[1:],NoiseAmp):
+            for G,(Z_opt1, Z_opt2, Z_opt_bg),real_curr,real_next,(noise_amp1, noise_amp2) in zip(Gs,Zs,reals,reals[1:],NoiseAmp):
+
+                noise_amp = None
                 if noise_mode == NoiseMode.Z1:
                     z1 = _create_noise_for_draw_concat(opt, count, pad_noise, m_noise, Z_opt1, noise_mode)
                     z2 = torch.zeros(z1.shape, device=opt.device)
+                    noise_amp = noise_amp1
                 elif noise_mode == NoiseMode.Z2:
                     z2 = _create_noise_for_draw_concat(opt, count, pad_noise, m_noise, Z_opt2, noise_mode)
                     z1 = torch.zeros(z2.shape, device=opt.device)
+                    noise_amp = noise_amp2
                 elif noise_mode == NoiseMode.MIXED:
                     z1 = _create_noise_for_draw_concat(opt, count, pad_noise, m_noise, Z_opt1, noise_mode)
                     z2 = _create_noise_for_draw_concat(opt, count, pad_noise, m_noise, Z_opt2, noise_mode)
@@ -509,16 +514,19 @@ def draw_concat(Gs, Zs, reals, NoiseAmp, in_s, mode, m_noise, m_image, opt, nois
                 count += 1
         if mode == 'rec':
             count = 0
-            for G,(Z_opt1, Z_opt2, Z_opt_bg),real_curr,real_next,noise_amp in zip(Gs,Zs,reals,reals[1:],NoiseAmp):
+            for G,(Z_opt1, Z_opt2, Z_opt_bg),real_curr,real_next,(noise_amp1, noise_amp2) in zip(Gs,Zs,reals,reals[1:],NoiseAmp):
                 G_z = G_z[:, :, 0:real_curr.shape[2], 0:real_curr.shape[3]]
                 G_z = m_image(G_z)
 
+                noise_amp = None
                 if noise_mode == NoiseMode.Z1:
                     Z_opt2_zeros = torch.zeros(Z_opt2.shape, device=opt.device)
                     Z_opt = functions.merge_noise_vectors(Z_opt1, Z_opt2_zeros, opt.noise_vectors_merge_method)
+                    noise_amp = noise_amp1
                 elif noise_mode == NoiseMode.Z2:
                     Z_opt1_zeros = torch.zeros(Z_opt1.shape, device=opt.device)
                     Z_opt = functions.merge_noise_vectors(Z_opt1_zeros, Z_opt2, opt.noise_vectors_merge_method)
+                    noise_amp = noise_amp2
                 elif noise_mode == NoiseMode.MIXED:
                     Z_opt = functions.merge_noise_vectors(Z_opt1, Z_opt2, opt.noise_vectors_merge_method)
                 elif noise_mode == NoiseMode.BACKGROUND:
