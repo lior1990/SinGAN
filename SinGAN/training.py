@@ -326,6 +326,8 @@ def train_single_scale(netD1, netD2, netD_mixed,netG,reals1, reals2, background_
 
             torch.save((mixed_noise1, prev1), '%s/fake1_noise_source.pth' % (opt.outf))
             torch.save((mixed_noise2, prev2), '%s/fake2_noise_source.pth' % (opt.outf))
+            torch.save((Z_opt1, z_prev1), '%s/G(z_opt1)_noise_source.pth' % (opt.outf))
+            torch.save((Z_opt2, z_prev2), '%s/G(z_opt2)_noise_source.pth' % (opt.outf))
             torch.save(z_opt1, '%s/z_opt1.pth' % (opt.outf))
             torch.save(z_opt2, '%s/z_opt2.pth' % (opt.outf))
 
