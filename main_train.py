@@ -31,8 +31,8 @@ def _cleanup_logger():
 def parse_arguments(namespace=None):
     parser = get_arguments()
     parser.add_argument('--input_dir', help='input image dir', default='Input/Images')
-    parser.add_argument('--input_name1', help='input image name 1', required=True)
-    parser.add_argument('--input_name2', help='input image name 2', required=True)
+    parser.add_argument('--input_name1', help='input image name 1', required=namespace is None)
+    parser.add_argument('--input_name2', help='input image name 2', required=namespace is None)
     parser.add_argument('--mode', help='task to be done', default='train')
     opt = parser.parse_args(namespace=namespace)
     opt = functions.post_config(opt)

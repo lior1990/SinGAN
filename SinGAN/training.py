@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 
 from SinGAN.functions import NoiseMode
 from SinGAN.imresize import imresize
+from SinGAN.my_functions import create_img_over_background, create_background
 
 logger = logging.getLogger()
 
@@ -26,12 +27,8 @@ def get_reals(reals, opt, image_name, regular_resize=False):
 def train(opt,Gs,Zs,reals1, reals2,NoiseAmp):
     logger.info("Starting to train...")
 
-    masked_reals2 = []
-    background_reals1 = []
     reals1 = get_reals(reals1, opt, opt.input_name1)
     reals2 = get_reals(reals2, opt, opt.input_name2)
-    masked_reals2 = get_reals(masked_reals2, opt, f"masked_{opt.input_name2}", regular_resize=True)
-    background_reals1 = get_reals(background_reals1, opt, f"background_{opt.input_name1}", regular_resize=True)
     in_s1 = 0
     in_s2 = 0
     in_s_mixed = 0
@@ -53,7 +50,6 @@ def train(opt,Gs,Zs,reals1, reals2,NoiseAmp):
         #plt.imsave('%s/original.png' %  (opt.out_), functions.convert_image_np(real_), vmin=0, vmax=1)
         plt.imsave('%s/real_scale1.png' %  (opt.outf), functions.convert_image_np(reals1[scale_num]), vmin=0, vmax=1)
         plt.imsave('%s/real_scale2.png' % (opt.outf), functions.convert_image_np(reals2[scale_num]), vmin=0, vmax=1)
-        plt.imsave('%s/masked_real_scale2.png' % (opt.outf), functions.convert_image_np(masked_reals2[scale_num]), vmin=0, vmax=1)
 
         D1_curr, D2_curr, D_mixed_curr, G_curr = init_models(opt)
         if (nfc_prev==opt.nfc):
@@ -64,7 +60,7 @@ def train(opt,Gs,Zs,reals1, reals2,NoiseAmp):
 
         mixed_imgs_training = bool(scale_num >= opt.stop_scale/2) if opt.mixed_imgs_training else False
         logger.info(f"Starting to train scale {scale_num}. Mixed imgs status: {mixed_imgs_training}")
-        z_curr_tuple, in_s_tuple, G_curr = train_single_scale(D1_curr, D2_curr, D_mixed_curr,G_curr,reals1, reals2, background_reals1, masked_reals2,Gs,Zs,in_s1, in_s2, in_s_mixed,NoiseAmp,opt,
+        z_curr_tuple, in_s_tuple, G_curr = train_single_scale(D1_curr, D2_curr, D_mixed_curr,G_curr,reals1, reals2, Gs,Zs,in_s1, in_s2, in_s_mixed,NoiseAmp,opt,
                                                               mixed_imgs_training=mixed_imgs_training)
         in_s1, in_s2, in_s_mixed, in_s_bg = in_s_tuple
         logger.info(f"Done training scale {scale_num}")
@@ -94,15 +90,20 @@ def train(opt,Gs,Zs,reals1, reals2,NoiseAmp):
     return
 
 
-
-def train_single_scale(netD1, netD2, netD_mixed,netG,reals1, reals2, background_reals1, masked_reals2,Gs,Zs,in_s1, in_s2, in_s_mixed,NoiseAmp,opt, mixed_imgs_training=False):
+def train_single_scale(netD1, netD2, netD_mixed,netG,reals1, reals2, Gs,Zs,in_s1, in_s2, in_s_mixed,NoiseAmp,opt, mixed_imgs_training=False):
 
     real1 = reals1[len(Gs)]
     real2 = reals2[len(Gs)]
-    masked_real2 = masked_reals2[len(Gs)]
-    background_real1 = background_reals1[len(Gs)]
 
-    assert (masked_real2[0][0] == masked_real2[0][1]).all().all() and (masked_real2[0][1] == masked_real2[0][2]).all().all()
+    if opt.replace_background:
+        background_real1 = create_background(functions.convert_image_np(real1))
+        real2 = create_img_over_background(functions.convert_image_np(real2), background_real1)
+
+        plt.imsave('%s/background_real_scale1.png' % (opt.outf), background_real1, vmin=0, vmax=1)
+        plt.imsave('%s/real_scale2_new.png' % (opt.outf), real2, vmin=0, vmax=1)
+
+        real2 = functions.np2torch(real2, opt)
+        background_real1 = functions.np2torch(background_real1, opt)
 
     # assumption: the images are the same size
     opt.nzx = real1.shape[2]#+(opt.ker_size-1)*(opt.num_layer)

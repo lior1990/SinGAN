@@ -63,4 +63,6 @@ def get_arguments():
                         )
     parser.add_argument("--gaussian_noise_z_distance", type=int, default=1,
                         help="Distance between z1 and z2 gaussians")
+    parser.add_argument("--replace_background", type=bool, default=False,
+                        help="Use image1 as primary image and replace image2's background")
     return parser
