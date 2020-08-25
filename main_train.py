@@ -61,16 +61,22 @@ def main(opt, generate=True):
             config_dict = {k: str(v) for k, v in opt.__dict__.items()}
             json.dump(config_dict, fp)
 
-        real1 = functions.read_image(opt, image_name=opt.input_name1)
-        real2 = functions.read_image(opt, image_name=opt.input_name2)
-        functions.adjust_scales2image(real1, opt)
-        functions.adjust_scales2image(real2, opt)
-        train(opt, Gs, Zs, reals1, reals2, NoiseAmp)
-        logger.info("Done training")
-        if generate:
-            logger.info("Generating random samples")
-            SinGAN_generate(Gs,Zs,reals1, reals2,NoiseAmp,opt)
-        _cleanup_logger()
+        try:
+            real1 = functions.read_image(opt, image_name=opt.input_name1)
+            real2 = functions.read_image(opt, image_name=opt.input_name2)
+            functions.adjust_scales2image(real1, opt)
+            functions.adjust_scales2image(real2, opt)
+            train(opt, Gs, Zs, reals1, reals2, NoiseAmp)
+            logger.info("Done training")
+            if generate:
+                logger.info("Generating random samples")
+                SinGAN_generate(Gs, Zs, reals1, reals2, NoiseAmp, opt)
+        except Exception as e:
+            logger.exception("Failed")
+            raise
+        finally:
+            logger.info("Cleaning logger")
+            _cleanup_logger()
 
 
 if __name__ == '__main__':

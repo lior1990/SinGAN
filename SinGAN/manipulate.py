@@ -20,15 +20,53 @@ import matplotlib.pyplot as plt
 from SinGAN.training import *
 from config import get_arguments
 
-def SinGAN_generate(Gs,Zs,reals1, reals2,NoiseAmp,opt,in_s=None, scale_v=1,scale_h=1,n=0,gen_start_scale=0,num_samples=50):
+def SinGAN_generate(Gs,Zs,reals1, reals2,NoiseAmp,opt,in_s1=None, in_s2=None, scale_v=1,scale_h=1,n=0,gen_start_scale=0,num_samples=100):
     #if torch.is_tensor(in_s) == False:
-    if in_s is None:
-        in_s = torch.full(reals1[0].shape, 0, device=opt.device)
+    # if in_s is None:
+    in_s = torch.full(reals1[0].shape, 0, device=opt.device)
     images_cur = []
+    # assert len(reals1) == len(Gs)
 
-    assert len(reals1) == len(Gs)
+    def random_noise_mode():
+        prob = torch.rand(1)
+        if prob < 0.5:
+            noise_mode = NoiseMode.Z1
+        else:
+            noise_mode = NoiseMode.Z2
+        return noise_mode
 
-    for G,(Z_opt1, Z_opt2),noise_amp in zip(Gs,Zs,NoiseAmp):
+    noise_modes = [random_noise_mode() for _ in range(num_samples)]
+
+    #
+    if opt.mode == 'train':
+        dir2save = '%s/RandomSamples/%s/gen_start_scale=%d' % (opt.out, opt.exp_name, gen_start_scale)
+        if not os.path.exists(dir2save):
+            os.makedirs(dir2save)
+    else:
+        dir2save = functions.generate_dir2save(opt)
+
+
+    # reconstruct zopt1 and zopt2
+    in_s = torch.full(reals1[0].shape, 0, device=opt.device)
+    pad1 = ((opt.ker_size - 1) * opt.num_layer) / 2
+    m = nn.ZeroPad2d(int(pad1))
+    z_prev2 = draw_concat(Gs, Zs, reals2, NoiseAmp, in_s, 'rec', m, m, opt, NoiseMode.Z2)
+    res2 = Gs[-1](z_prev2, z_prev2)[0]
+    plt.imsave(f'%s/2.png' % (dir2save), functions.convert_image_np(res2.detach()), vmin=0, vmax=1)
+
+    in_s = torch.full(reals2[0].shape, 0, device=opt.device)
+    pad1 = ((opt.ker_size - 1) * opt.num_layer) / 2
+    m = nn.ZeroPad2d(int(pad1))
+    z_prev1 = draw_concat(Gs, Zs, reals1, NoiseAmp, in_s, 'rec', m, m, opt, NoiseMode.Z1)
+    z_in1 = z_prev1
+    res1 = Gs[-1](z_in1.detach(), z_prev1)[0]
+    plt.imsave(f'%s/1.png' % (dir2save), functions.convert_image_np(res1.detach()), vmin=0, vmax=1)
+
+    ###
+
+    in_s = torch.full(reals1[0].shape, 0, device=opt.device)
+
+    for G,(Z_opt1, Z_opt2),(noise_amp1, noise_amp2) in zip(Gs,Zs,NoiseAmp):
         pad1 = ((opt.ker_size-1)*opt.num_layer)/2
         m = nn.ZeroPad2d(int(pad1))
         # assumption: same size
@@ -39,11 +77,7 @@ def SinGAN_generate(Gs,Zs,reals1, reals2,NoiseAmp,opt,in_s=None, scale_v=1,scale
         images_cur = []
 
         for i in range(0,num_samples,1):
-            image1_weight = torch.rand(1)
-            image2_weight = 1 - image1_weight
-            z_curr1 = _generate_noise_for_sampling(m, n, nzx, nzy, opt, NoiseMode.Z1) * image1_weight
-            z_curr2 = _generate_noise_for_sampling(m, n, nzx, nzy, opt, NoiseMode.Z2) * image2_weight
-            z_curr = functions.merge_noise_vectors(z_curr1, z_curr2, opt.noise_vectors_merge_method)
+            z_curr = _generate_noise_for_sampling(m, n, nzx, nzy, opt, noise_modes[i])
 
             if images_prev == []:
                 I_prev = m(in_s)
@@ -60,14 +94,21 @@ def SinGAN_generate(Gs,Zs,reals1, reals2,NoiseAmp,opt,in_s=None, scale_v=1,scale
 
 
             if n < gen_start_scale:
-                z_curr = torch.cat((Z_opt1, Z_opt2))
+                zero = torch.zeros(Z_opt1.shape)
+                if noise_modes[i] == NoiseMode.Z1:
+                    z_curr = functions.merge_noise_vectors(Z_opt1, zero, opt.noise_vectors_merge_method)
+                elif noise_modes[i] == NoiseMode.Z2:
+                    z_curr = functions.merge_noise_vectors(zero, Z_opt2, opt.noise_vectors_merge_method)
+                else:
+                    z_curr = functions.merge_noise_vectors(Z_opt1, Z_opt2, opt.noise_vectors_merge_method)
 
+            noise_amp = noise_amp1 if noise_modes[i] == NoiseMode.Z1 else noise_amp2
             z_in = noise_amp*(z_curr)+I_prev
-            I_curr = G(z_in.detach(),I_prev)
+            I_curr = G(z_in.detach(),I_prev)[0]
 
             if n == len(reals1)-1:
                 if opt.mode == 'train':
-                    dir2save = '%s/RandomSamples/%s/gen_start_scale=%d' % (opt.out, opt.input_name[:-4], gen_start_scale)
+                    dir2save = '%s/RandomSamples/%s/gen_start_scale=%d' % (opt.out, opt.exp_name, gen_start_scale)
                 else:
                     dir2save = functions.generate_dir2save(opt)
                 try:
@@ -76,7 +117,7 @@ def SinGAN_generate(Gs,Zs,reals1, reals2,NoiseAmp,opt,in_s=None, scale_v=1,scale
                     pass
                 if (opt.mode != "harmonization") & (opt.mode != "editing") & (opt.mode != "SR") & (opt.mode != "paint2image"):
                     print(f"Saving image: {i}")
-                    plt.imsave('%s/%d.png' % (dir2save, i), functions.convert_image_np(I_curr.detach()), vmin=0,vmax=1)
+                    plt.imsave(f'%s/%d_{noise_modes[i].name}.png' % (dir2save, i), functions.convert_image_np(I_curr.detach()), vmin=0,vmax=1)
                     #plt.imsave('%s/%d_%d.png' % (dir2save,i,n),functions.convert_image_np(I_curr.detach()), vmin=0, vmax=1)
                     #plt.imsave('%s/in_s.png' % (dir2save), functions.convert_image_np(in_s), vmin=0,vmax=1)
             images_cur.append(I_curr)

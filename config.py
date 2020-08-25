@@ -11,9 +11,9 @@ def get_arguments():
     
     #load, input, save configurations:
     parser.add_argument('--netG', default='', help="path to netG (to continue training)")
-    parser.add_argument('--netD1', default='', help="path to netD (to continue training)")
-    parser.add_argument('--netD2', default='', help="path to netD (to continue training)")
-    parser.add_argument('--netD_mixed', default='', help="path to netD (to continue training)")
+    parser.add_argument('--netD', default='', help="path to netD (to continue training)")
+    parser.add_argument('--netD_mask1', default='', help="path to netD (to continue training)")
+    parser.add_argument('--netD_mask2', default='', help="path to netD (to continue training)")
     parser.add_argument('--manualSeed', type=int, help='manual seed')
     parser.add_argument('--nc_z',type=int,help='noise # channels',default=3)
     parser.add_argument('--nc_im',type=int,help='image # channels',default=3)
@@ -65,4 +65,15 @@ def get_arguments():
                         help="Distance between z1 and z2 gaussians")
     parser.add_argument("--replace_background", type=bool, default=False,
                         help="Use image1 as primary image and replace image2's background")
+    parser.add_argument("--weight_decay_d", type=float, default=0,
+                        help="weight decay for D discriminator")
+    parser.add_argument("--weight_decay_d_mask1", type=float, default=4e-3,
+                        help="weight decay for D mask1 discriminator")
+    parser.add_argument("--weight_decay_d_mask2", type=float, default=4e-3,
+                        help="weight decay for D mask2 discriminator")
+    parser.add_argument("--cyclic_lr", type=bool, default=False,
+                        help="use cyclic learning rate scheduler")
+    parser.add_argument("--mask_activation_fn", type=str, default="sigmoid",
+                        help="activation function to apply on the Generator's masks. "
+                             "options are: sigmoid, relu_sign or tanh_relu")
     return parser

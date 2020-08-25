@@ -3,8 +3,7 @@ from argparse import Namespace
 from main_train import main, parse_arguments
 
 
-IMAGES = [("birds1.jpg", "birds2.jpg"), ("birds1.jpg", "birds3.jpg"), ("birds2.jpg", "birds3.jpg"),
-          ("birds.png", "balloons_size_birds.png")]
+IMAGES = [("birds1.jpg", "birds2.jpg"), ("birds.png", "balloons_size_birds.png")]
 
 CONFIGURATIONS = {"scale_factor": [0.8],
                   "mixed_imgs_training": [False],
@@ -12,6 +11,7 @@ CONFIGURATIONS = {"scale_factor": [0.8],
                   "gaussian_noise_z_distance": [0],
                   "alpha": [15],
                   "replace_background": [True],
+                  "nfc": [128, 32]
                   }
 
 
@@ -29,19 +29,22 @@ def multiple_main():
                     for gaussian_noise_z_distance in CONFIGURATIONS["gaussian_noise_z_distance"]:
                         for alpha in CONFIGURATIONS["alpha"]:
                             for replace_background in CONFIGURATIONS["replace_background"]:
-                                mixed_str = "mixed" if mixed_imgs_training else ""
-                                exp_name = f"{mixed_str}_{noise_vectors_merge_method}_g-dist{gaussian_noise_z_distance}_alpha{alpha}"
-                                config = {
-                                    "scale_factor": scale_factor,
-                                    "mixed_imgs_training": mixed_imgs_training,
-                                    "noise_vectors_merge_method": noise_vectors_merge_method,
-                                    "gaussian_noise_z_distance": gaussian_noise_z_distance,
-                                    "alpha": alpha,
-                                    "exp_name": exp_name,
-                                    "replace_background": replace_background,
-                                }
-                                _run_with_images(config, exp_name, img1, img2)
-                                _run_with_images(config, exp_name, img2, img1)
+                                for nfc in CONFIGURATIONS["nfc"]:
+                                    mixed_str = "mixed" if mixed_imgs_training else ""
+                                    exp_name = f"{mixed_str}_{noise_vectors_merge_method}_g-dist{gaussian_noise_z_distance}_alpha{alpha}_nfc{nfc}"
+                                    config = {
+                                        "scale_factor": scale_factor,
+                                        "mixed_imgs_training": mixed_imgs_training,
+                                        "noise_vectors_merge_method": noise_vectors_merge_method,
+                                        "gaussian_noise_z_distance": gaussian_noise_z_distance,
+                                        "alpha": alpha,
+                                        "exp_name": exp_name,
+                                        "replace_background": replace_background,
+                                        "nfc": nfc,
+                                        "min_nfc": nfc,
+                                    }
+                                    _run_with_images(config, exp_name, img1, img2)
+                                    _run_with_images(config, exp_name, img2, img1)
 
 
 def _run_with_images(config, exp_name, img1, img2):
