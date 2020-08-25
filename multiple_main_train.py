@@ -11,7 +11,7 @@ CONFIGURATIONS = {"scale_factor": [0.8],
                   "noise_vectors_merge_method": ["sum"],
                   "gaussian_noise_z_distance": [0],
                   "alpha": [15],
-                  "replace_background": [True, False],
+                  "replace_background": [True],
                   }
 
 

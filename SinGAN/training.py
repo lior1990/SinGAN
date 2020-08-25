@@ -96,6 +96,7 @@ def train_single_scale(netD1, netD2, netD_mixed,netG,reals1, reals2, Gs,Zs,in_s1
     real2 = reals2[len(Gs)]
 
     if opt.replace_background:
+        real2_old_bg = real2
         background_real1 = create_background(functions.convert_image_np(real1))
         real2 = create_img_over_background(functions.convert_image_np(real2), background_real1)
 
@@ -175,6 +176,9 @@ def train_single_scale(netD1, netD2, netD_mixed,netG,reals1, reals2, Gs,Zs,in_s1
 
             errD1_real, D1_x1 = discriminator_train_with_real(netD1, opt, real1)
             errD2_real, D2_x2 = discriminator_train_with_real(netD1, opt, real2)
+            if opt.replace_background:
+                _, _ = discriminator_train_with_real(netD1, opt, real2_old_bg)
+
             # errD2_real, D2_x2 = discriminator_train_with_real(netD2, opt, masked_real2)
 
             if mixed_imgs_training:
