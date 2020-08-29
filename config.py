@@ -75,5 +75,5 @@ def get_arguments():
                         help="use cyclic learning rate scheduler")
     parser.add_argument("--mask_activation_fn", type=str, default="sigmoid",
                         help="activation function to apply on the Generator's masks. "
-                             "options are: sigmoid, relu_sign or tanh_relu")
+                             "options are: sigmoid, relu_sign, tanh_relu or down_up")
     return parser

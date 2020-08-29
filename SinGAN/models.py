@@ -40,7 +40,7 @@ class WDiscriminator(nn.Module):
 
 
 class GeneratorConcatSkip2CleanAdd(nn.Module):
-    def __init__(self, opt):
+    def __init__(self, opt, img_shape):
         super(GeneratorConcatSkip2CleanAdd, self).__init__()
         self.is_cuda = torch.cuda.is_available()
         N = opt.nfc
@@ -63,6 +63,8 @@ class GeneratorConcatSkip2CleanAdd(nn.Module):
             self.mask_activation_layer = nn.Sequential(nn.ReLU(), Sign())
         elif opt.mask_activation_fn == "tanh_relu":
             self.mask_activation_layer = nn.Sequential(nn.Tanh(), nn.ReLU())
+        elif opt.mask_activation_fn == "down_up":
+            self.mask_activation_layer = nn.Sequential(nn.Tanh(), nn.ReLU(), nn.MaxPool2d(opt.ker_size), nn.Upsample(size=img_shape[2:]))
         else:
             raise NotImplementedError
 

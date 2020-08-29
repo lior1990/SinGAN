@@ -50,7 +50,7 @@ def train(opt,Gs,Zs,reals1, reals2,NoiseAmp):
         plt.imsave('%s/real_scale1.png' %  (opt.outf), functions.convert_image_np(reals1[scale_num]), vmin=0, vmax=1)
         plt.imsave('%s/real_scale2.png' % (opt.outf), functions.convert_image_np(reals2[scale_num]), vmin=0, vmax=1)
 
-        D_curr, D_mask1_curr, D_mask2_curr, G_curr = init_models(opt)
+        D_curr, D_mask1_curr, D_mask2_curr, G_curr = init_models(opt, reals1[len(Gs)].shape)
         if (nfc_prev==opt.nfc):
             G_curr.load_state_dict(torch.load('%s/%d/netG.pth' % (opt.out_,scale_num-1)))
             D_curr.load_state_dict(torch.load('%s/%d/netD.pth' % (opt.out_,scale_num-1)))
@@ -523,10 +523,10 @@ def _create_noise_for_draw_concat(opt, count, pad_noise, m_noise, Z_opt, noise_m
     return z
 
 
-def init_models(opt) -> "Tuple[models.WDiscriminator, models.WDiscriminator, models.WDiscriminator, models.GeneratorConcatSkip2CleanAdd]":
+def init_models(opt, img_shape) -> "Tuple[models.WDiscriminator, models.WDiscriminator, models.WDiscriminator, models.GeneratorConcatSkip2CleanAdd]":
 
     #generator initialization:
-    netG = models.GeneratorConcatSkip2CleanAdd(opt).to(opt.device)
+    netG = models.GeneratorConcatSkip2CleanAdd(opt, img_shape).to(opt.device)
     netG.apply(models.weights_init)
     if opt.netG != '':
         netG.load_state_dict(torch.load(opt.netG))
