@@ -88,6 +88,11 @@ def train(opt,Gs,Zs,reals1, reals2,NoiseAmp):
     return
 
 
+def _generate_fake(netG, noise, prev):
+    fake, mask1, mask2 = netG(noise.detach(), prev)
+    return fake, mask1, mask2
+
+
 def train_single_scale(netD, netD_mask1, netD_mask2,netG,reals1, reals2, Gs,Zs,in_s1, in_s2,NoiseAmp,opt):
 
     real1 = reals1[len(Gs)]
@@ -218,15 +223,17 @@ def train_single_scale(netD, netD_mask1, netD_mask2,netG,reals1, reals2, Gs,Zs,i
             # Z1 only:
             mixed_noise1 = functions.merge_noise_vectors(noise1, torch.zeros(noise1.shape, device=opt.device),
                                                opt.noise_vectors_merge_method)
-            D_G_z_1, errD_fake1, gradient_penalty1, fake1, _, _ = _train_discriminator_with_fake(netD, netG, mixed_noise1, opt, prev1, real1)
+            fake1, fake1_mask1, fake1_mask2 = _generate_fake(netG, mixed_noise1, prev1)
+            D_G_z_1, errD_fake1, gradient_penalty1 = _train_discriminator_with_fake(netD, fake1, opt, real1)
 
             # Z2 only:
             mixed_noise2 = functions.merge_noise_vectors(torch.zeros(noise2.shape, device=opt.device), noise2,
                                                opt.noise_vectors_merge_method)
-            D_G_z_2, errD_fake2, gradient_penalty2, fake2, _, _ = _train_discriminator_with_fake(netD, netG, mixed_noise2, opt, prev2, real2)
+            fake2, fake2_mask1, fake2_mask2 = _generate_fake(netG, mixed_noise2, prev2)
+            D_G_z_2, errD_fake2, gradient_penalty2 = _train_discriminator_with_fake(netD, fake2, opt, real2)
 
-            _, errD_mask1_fake1, _, _, fake1_mask1, fake1_mask2 = _train_discriminator_with_fake(netD_mask1, netG, mixed_noise1, opt, prev1, real1)
-            _, errD_mask2_fake2, _, _, fake2_mask1, fake2_mask2 = _train_discriminator_with_fake(netD_mask2, netG, mixed_noise2, opt, prev2, real2)
+            _, errD_mask1_fake1, _ = _train_discriminator_with_fake(netD_mask1, fake1_mask1, opt, real1)
+            _, errD_mask2_fake2, _ = _train_discriminator_with_fake(netD_mask2, fake2_mask2, opt, real2)
 
             errD_image1 = errD_real1 + errD_fake1 + gradient_penalty1
             errD_image2 = errD_real2 + errD_fake2 + gradient_penalty2
@@ -256,19 +263,19 @@ def train_single_scale(netD, netD_mask1, netD_mask2,netG,reals1, reals2, Gs,Zs,i
             rec_loss2, Z_opt2 = _reconstruction_loss(alpha, netG, opt, z_opt2, z_prev2, real2, NoiseMode.Z2, opt.noise_amp2)
 
             mask_loss_fake1_mask1, D_mask1_fake1_mask1_map = _generator_train_with_fake(fake1_mask1, netD_mask1)
-            # mask_loss_fake2_mask1, D_mask1_fake2_mask1_map = _generator_train_with_fake(fake2_mask1, netD_mask1)
-            # mask_loss_fake1_mask2, D_mask2_fake1_mask2_map = _generator_train_with_fake(fake1_mask2, netD_mask2)
+            mask_loss_fake2_mask1, D_mask1_fake2_mask1_map = _generator_train_with_fake(fake2_mask1, netD_mask1)
+            mask_loss_fake1_mask2, D_mask2_fake1_mask2_map = _generator_train_with_fake(fake1_mask2, netD_mask2)
             mask_loss_fake2_mask2, D_mask2_fake2_mask2_map = _generator_train_with_fake(fake2_mask2, netD_mask2)
-            # mask_loss = mask_loss_fake1_mask1 + mask_loss_fake2_mask1 + mask_loss_fake1_mask2 + mask_loss_fake2_mask2
+            mask_loss = mask_loss_fake1_mask1 + mask_loss_fake2_mask1 + mask_loss_fake1_mask2 + mask_loss_fake2_mask2
 
-            l1_loss_fake1_mask2 = l1_loss(fake1_mask2, zero_mask_tensor)
-            l1_loss_fake1_mask2.backward(retain_graph=True)
+            # l1_loss_fake1_mask2 = l1_loss(fake1_mask2, zero_mask_tensor)
+            # l1_loss_fake1_mask2.backward(retain_graph=True)
 
-            l1_loss_fake2_mask1 = l1_loss(fake2_mask1, zero_mask_tensor)
-            l1_loss_fake2_mask1.backward(retain_graph=True)
+            # l1_loss_fake2_mask1 = l1_loss(fake2_mask1, zero_mask_tensor)
+            # l1_loss_fake2_mask1.backward(retain_graph=True)
 
-            mask_loss = mask_loss_fake1_mask1 + mask_loss_fake2_mask2
-            l1_mask_loss = l1_loss_fake1_mask2 + l1_loss_fake2_mask1
+            # mask_loss = mask_loss_fake1_mask1 + mask_loss_fake2_mask2
+            # l1_mask_loss = l1_loss_fake1_mask2 + l1_loss_fake2_mask1
 
             optimizerG.step()
 
@@ -285,7 +292,7 @@ def train_single_scale(netD, netD_mask1, netD_mask2,netG,reals1, reals2, Gs,Zs,i
         reconstruction_loss1_2plot.append(rec_loss1)
         reconstruction_loss2_2plot.append(rec_loss2)
         mask_loss2plot.append(mask_loss.detach())
-        l1_mask_loss2plot.append(l1_mask_loss.detach())
+        # l1_mask_loss2plot.append(l1_mask_loss.detach())
 
         if epoch % 25 == 0 or epoch == (opt.niter-1):
             logger.info('scale %d:[%d/%d]' % (len(Gs), epoch, opt.niter))
@@ -306,11 +313,19 @@ def train_single_scale(netD, netD_mask1, netD_mask2,netG,reals1, reals2, Gs,Zs,i
             torch.save(z_opt2, '%s/z_opt2.pth' % (opt.outf))
 
             if epoch == (opt.niter-1):
+                plt.imsave('%s/fake1_mask1.png' % (opt.outf), functions.convert_image_np(fake1_mask1.detach()), vmin=0,
+                           vmax=1)
+                plt.imsave('%s/fake2_mask1.png' % (opt.outf), functions.convert_image_np(fake2_mask1.detach()), vmin=0,
+                           vmax=1)
+                plt.imsave('%s/fake1_mask2.png' % (opt.outf), functions.convert_image_np(fake1_mask2.detach()), vmin=0,
+                           vmax=1)
+                plt.imsave('%s/fake2_mask2.png' % (opt.outf), functions.convert_image_np(fake2_mask2.detach()), vmin=0,
+                           vmax=1)
                 _imsave_discriminator_map(D_fake1_map, "D_fake1_map", opt)
                 _imsave_discriminator_map(D_fake2_map, "D_fake2_map", opt)
                 _imsave_discriminator_map(D_mask1_fake1_mask1_map, "D_mask1_fake1_mask1_map", opt)
-                # _imsave_discriminator_map(D_mask1_fake2_mask1_map, "D_mask1_fake2_mask1_map", opt)
-                # _imsave_discriminator_map(D_mask2_fake1_mask2_map, "D_mask2_fake1_mask2_map", opt)
+                _imsave_discriminator_map(D_mask1_fake2_mask1_map, "D_mask1_fake2_mask1_map", opt)
+                _imsave_discriminator_map(D_mask2_fake1_mask2_map, "D_mask2_fake1_mask2_map", opt)
                 _imsave_discriminator_map(D_mask2_fake2_mask2_map, "D_mask2_fake2_mask2_map", opt)
 
         for discriminator_scheduler in discriminators_schedulers:
@@ -324,10 +339,10 @@ def train_single_scale(netD, netD_mask1, netD_mask2,netG,reals1, reals2, Gs,Zs,i
                                                          errG_fake1_2plot, errG_fake2_2plot,
                                                          reconstruction_loss1_2plot,
                                                          reconstruction_loss2_2plot,
-                                                         mask_loss2plot, l1_mask_loss2plot],
+                                                         mask_loss2plot],
                                    ["G_total_loss", "G_total_loss1", "G_total_loss2",
                                     "G_fake1_loss", "G_fake2_loss",
-                                    "G_recon_loss_1", "G_recon_loss_2", "mask_loss", "l1_mask_loss"], opt.outf)
+                                    "G_recon_loss_1", "G_recon_loss_2", "mask_loss"], opt.outf)
     d_plots = [err_D_img1_2plot, err_D_img2_2plot]
     d_labels = ["D1_total_loss", "D2_total_loss"]
 
@@ -377,15 +392,14 @@ def _reconstruction_loss(alpha, netG, opt, z_opt, z_prev, real, noise_mode: Nois
     return rec_loss, Z_opt
 
 
-def _train_discriminator_with_fake(netD, netG, noise, opt, prev, real):
-    fake, mask1, mask2 = netG(noise.detach(), prev)
+def _train_discriminator_with_fake(netD, fake, opt, real):
     output = netD(fake.detach())
     errD_fake = output.mean()
     errD_fake.backward(retain_graph=True)
     D_G_z = output.mean().item()
     gradient_penalty = functions.calc_gradient_penalty(netD, real, fake, opt.lambda_grad, opt.device)
     gradient_penalty.backward()
-    return D_G_z, errD_fake, gradient_penalty, fake, mask1, mask2
+    return D_G_z, errD_fake, gradient_penalty
 
 
 def _prepare_discriminator_train_with_fake_input(Gs, NoiseAmp, Zs, epoch, in_s, is_first_scale, j, m_image, m_noise,
