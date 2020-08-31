@@ -118,6 +118,9 @@ def train_single_scale(netD, netD_mask1, netD_mask2,netG,reals1, reals2, Gs,Zs,i
     z_opt = torch.full(fixed_noise.shape, 0, device=opt.device)
     z_opt = m_noise(z_opt)
 
+    l1_loss = nn.L1Loss()
+    zero_mask_tensor = torch.zeros([1,opt.nzx,opt.nzy])
+
     # setup optimizer
     optimizerD = optim.Adam(netD.parameters(), lr=opt.lr_d, betas=(opt.beta1, 0.999), weight_decay=opt.weight_decay_d)
     optimizerD_masked1 = optim.Adam(netD_mask1.parameters(), lr=opt.lr_d, betas=(opt.beta1, 0.999), weight_decay=opt.weight_decay_d_mask1)
@@ -160,6 +163,7 @@ def train_single_scale(netD, netD_mask1, netD_mask2,netG,reals1, reals2, Gs,Zs,i
     D2_real2plot = []
     D1_fake2plot = []
     D2_fake2plot = []
+    l1_mask_loss2plot = []
     mask_loss2plot = []
     reconstruction_loss1_2plot = []
     reconstruction_loss2_2plot = []
@@ -256,7 +260,15 @@ def train_single_scale(netD, netD_mask1, netD_mask2,netG,reals1, reals2, Gs,Zs,i
             # mask_loss_fake1_mask2, D_mask2_fake1_mask2_map = _generator_train_with_fake(fake1_mask2, netD_mask2)
             mask_loss_fake2_mask2, D_mask2_fake2_mask2_map = _generator_train_with_fake(fake2_mask2, netD_mask2)
             # mask_loss = mask_loss_fake1_mask1 + mask_loss_fake2_mask1 + mask_loss_fake1_mask2 + mask_loss_fake2_mask2
+
+            l1_loss_fake1_mask2 = l1_loss(fake1_mask2, zero_mask_tensor)
+            l1_loss_fake1_mask2.backward(retain_graph=True)
+
+            l1_loss_fake2_mask1 = l1_loss(fake2_mask1, zero_mask_tensor)
+            l1_loss_fake2_mask1.backward(retain_graph=True)
+
             mask_loss = mask_loss_fake1_mask1 + mask_loss_fake2_mask2
+            l1_mask_loss = l1_loss_fake1_mask2 + l1_loss_fake2_mask1
 
             optimizerG.step()
 
@@ -273,6 +285,7 @@ def train_single_scale(netD, netD_mask1, netD_mask2,netG,reals1, reals2, Gs,Zs,i
         reconstruction_loss1_2plot.append(rec_loss1)
         reconstruction_loss2_2plot.append(rec_loss2)
         mask_loss2plot.append(mask_loss.detach())
+        l1_mask_loss2plot.append(l1_mask_loss.detach())
 
         if epoch % 25 == 0 or epoch == (opt.niter-1):
             logger.info('scale %d:[%d/%d]' % (len(Gs), epoch, opt.niter))
@@ -311,10 +324,10 @@ def train_single_scale(netD, netD_mask1, netD_mask2,netG,reals1, reals2, Gs,Zs,i
                                                          errG_fake1_2plot, errG_fake2_2plot,
                                                          reconstruction_loss1_2plot,
                                                          reconstruction_loss2_2plot,
-                                                         mask_loss2plot],
+                                                         mask_loss2plot, l1_mask_loss2plot],
                                    ["G_total_loss", "G_total_loss1", "G_total_loss2",
                                     "G_fake1_loss", "G_fake2_loss",
-                                    "G_recon_loss_1", "G_recon_loss_2", "mask_loss"], opt.outf)
+                                    "G_recon_loss_1", "G_recon_loss_2", "mask_loss", "l1_mask_loss"], opt.outf)
     d_plots = [err_D_img1_2plot, err_D_img2_2plot]
     d_labels = ["D1_total_loss", "D2_total_loss"]
 
