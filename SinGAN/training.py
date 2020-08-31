@@ -119,7 +119,7 @@ def train_single_scale(netD, netD_mask1, netD_mask2,netG,reals1, reals2, Gs,Zs,i
     z_opt = m_noise(z_opt)
 
     l1_loss = nn.L1Loss()
-    zero_mask_tensor = torch.zeros([1,opt.nzx,opt.nzy])
+    zero_mask_tensor = torch.zeros([1,opt.nzx,opt.nzy], device=opt.device)
 
     # setup optimizer
     optimizerD = optim.Adam(netD.parameters(), lr=opt.lr_d, betas=(opt.beta1, 0.999), weight_decay=opt.weight_decay_d)
