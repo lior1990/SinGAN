@@ -3,10 +3,10 @@ from argparse import Namespace
 from main_train import main, parse_arguments
 
 
-IMAGES = [("birds.png", "balloons_size_birds.png"), ("birds1.jpg", "birds2.jpg")]
+IMAGES = [("birds.png", "balloons_size_birds.png")]
 
 CONFIGURATIONS = {
-                  "mask_activation_fn": ["sigmoid", "relu_sign", "tanh_relu"],
+                  "mask_activation_fn": ["tanh_relu", "tanh_sign"],
                   "cyclic_lr": [False, True],
                   }
 DEFAULT_PARAMS = {
@@ -55,7 +55,7 @@ def _run_with_images(config, exp_name, img1, img2):
     opt = parse_arguments(namespace=namespace)
     print(f"Working on {exp_name} with img1: {img1}, img2: {img2}")
     try:
-        main(opt, generate=False)
+        main(opt, generate=True)
     except:
         print(f"{exp_name} with img1: {img1}, img2: {img2} failed!")
 

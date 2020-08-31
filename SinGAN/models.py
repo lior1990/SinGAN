@@ -63,6 +63,8 @@ class GeneratorConcatSkip2CleanAdd(nn.Module):
             self.mask_activation_layer = nn.Sequential(nn.ReLU(), Sign())
         elif opt.mask_activation_fn == "tanh_relu":
             self.mask_activation_layer = nn.Sequential(nn.Tanh(), nn.ReLU())
+        elif opt.mask_activation_fn == "tanh_sign":
+            self.mask_activation_layer = nn.Sequential(nn.Tanh(), Sign())
         elif opt.mask_activation_fn == "down_up":
             self.mask_activation_layer = nn.Sequential(nn.Tanh(), nn.ReLU(), nn.MaxPool2d(opt.ker_size), nn.Upsample(size=img_shape[2:]))
         else:
