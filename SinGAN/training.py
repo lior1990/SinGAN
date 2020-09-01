@@ -236,11 +236,13 @@ def train_single_scale(netD, netD_mask1, netD_mask2,netG,reals1, reals2, Gs,Zs,i
 
             _, errD_mask1_fake1, _ = _train_discriminator_with_fake(netD_mask1, fake1_mask1, opt, real1)
             _, errD_mask2_fake2, _ = _train_discriminator_with_fake(netD_mask2, fake2_mask2, opt, real2)
+            _, errD_mask2_fake1, _ = _train_discriminator_with_fake(netD_mask2, fake1_mask2, opt, real1, add_penalty=False)
+            _, errD_mask1_fake2, _ = _train_discriminator_with_fake(netD_mask1, fake2_mask1, opt, real2, add_penalty=False)
 
             errD_image1 = errD_real1 + errD_fake1 + gradient_penalty1
             errD_image2 = errD_real2 + errD_fake2 + gradient_penalty2
-            errD_mask1 = errD_mask1_real1 + errD_mask1_fake1
-            errD_mask2 = errD_mask2_real2 + errD_mask2_fake2
+            errD_mask1 = errD_mask1_real1 + errD_mask1_fake1 + errD_mask1_fake2
+            errD_mask2 = errD_mask2_real2 + errD_mask2_fake2 + errD_mask2_fake1
 
             for discriminator_optimizer in discriminators_optimizers:
                 discriminator_optimizer.step()
@@ -403,13 +405,18 @@ def _reconstruction_loss(alpha, netG, opt, z_opt, z_prev, real, noise_mode: Nois
     return rec_loss, Z_opt
 
 
-def _train_discriminator_with_fake(netD, fake, opt, real):
+def _train_discriminator_with_fake(netD, fake, opt, real, add_penalty = True):
     output = netD(fake.detach())
     errD_fake = output.mean()
     errD_fake.backward(retain_graph=True)
     D_G_z = output.mean().item()
-    gradient_penalty = functions.calc_gradient_penalty(netD, real, fake, opt.lambda_grad, opt.device)
-    gradient_penalty.backward()
+
+    gradient_penalty = 0
+
+    if add_penalty:
+        gradient_penalty = functions.calc_gradient_penalty(netD, real, fake, opt.lambda_grad, opt.device)
+        gradient_penalty.backward()
+
     return D_G_z, errD_fake, gradient_penalty
 
 
