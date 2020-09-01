@@ -86,28 +86,28 @@ def convert_image_np_2d(inp):
 
 
 def generate_noise(size,num_samp=1,device='cuda',type='gaussian', scale=1, noise_mode: Optional[NoiseMode] =None,
-                   gaussian_noise_z_distance=1
+                   gaussian_noise_z_distance=0
                    ):
     if type == 'gaussian':
         if noise_mode:
-            single_noise_dimension = floor(size[0]/2)
-            common_noise_dimension = size[0] - 2 * single_noise_dimension
-            assert common_noise_dimension > 0
-            common_noise = torch.randn(num_samp, common_noise_dimension, round(size[1]/scale), round(size[2]/scale), device=device)
-            zero_noise = torch.zeros(num_samp, single_noise_dimension, round(size[1]/scale), round(size[2]/scale), device=device)
-            single_noise = torch.randn(num_samp, single_noise_dimension, round(size[1]/scale), round(size[2]/scale), device=device)
+            total_size = size[0] * round(size[1]/scale) * round(size[2]/scale)
+            single_noise_size = floor(total_size/3)
+            common_noise_size = total_size - 2 * single_noise_size
+            assert common_noise_size > 0
+
+            common_noise = torch.randn(num_samp, common_noise_size, device=device)
+            zero_noise = torch.zeros(num_samp, single_noise_size, device=device)
+            single_noise = torch.randn(num_samp, single_noise_size, device=device)
+
             if noise_mode == NoiseMode.Z1:
                 common_noise += gaussian_noise_z_distance
                 noise = torch.cat([single_noise, common_noise, zero_noise], dim=1)
             elif noise_mode == NoiseMode.Z2:
                 common_noise -= gaussian_noise_z_distance
                 noise = torch.cat([zero_noise, common_noise, single_noise], dim=1)
-            elif noise_mode == NoiseMode.BACKGROUND:
-                noise = torch.cat([zero_noise, common_noise, zero_noise], dim=1)
-            elif noise_mode == NoiseMode.MIXED:
-                noise = torch.randn(num_samp, size[0], round(size[1]/scale), round(size[2]/scale), device=device)
             else:
                 raise NotImplementedError
+            noise = noise.reshape(num_samp, size[0], round(size[1]/scale), round(size[2]/scale))
 
         else:
             noise = torch.randn(num_samp, size[0], round(size[1] / scale), round(size[2] / scale), device=device)
