@@ -90,7 +90,9 @@ def train(opt,Gs,Zs,reals1, reals2,NoiseAmp):
 
 def _generate_fake(netG, noise, prev):
     fake, mask1, mask2 = netG(noise.detach(), prev)
-    return fake, mask1, mask2
+    mask1_output = fake * mask1
+    mask2_output = fake * mask2
+    return fake, mask1_output, mask2_output
 
 
 def train_single_scale(netD, netD_mask1, netD_mask2,netG,reals1, reals2, Gs,Zs,in_s1, in_s2,NoiseAmp,opt):
@@ -381,9 +383,18 @@ def _reconstruction_loss(alpha, netG, opt, z_opt, z_prev, real, noise_mode: Nois
         else:
             pass
 
-        fake, _, _ = netG(Z_opt.detach(), z_prev)
+        fake, mask1, mask2 = netG(Z_opt.detach(), z_prev)
+        zero_tensor = torch.zeros(mask1.shape, device=opt.device)
+        one_tensor = torch.ones(mask1.shape, device=opt.device)
 
-        rec_loss = alpha * loss(fake, real)
+        if noise_mode == NoiseMode.Z1:
+            mask1_mse_loss = one_tensor
+            mask2_mse_loss = zero_tensor
+        else:
+            mask1_mse_loss = zero_tensor
+            mask2_mse_loss = one_tensor
+
+        rec_loss = alpha * (loss(fake, real) + loss(mask1, mask1_mse_loss) + loss(mask2, mask2_mse_loss))
         rec_loss.backward(retain_graph=True)
         rec_loss = rec_loss.detach()
     else:
