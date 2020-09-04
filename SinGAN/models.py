@@ -51,9 +51,8 @@ class GeneratorConcatSkip2CleanAdd(nn.Module):
             block = ConvBlock(max(2*N,opt.min_nfc),max(N,opt.min_nfc),opt.ker_size,opt.padd_size,1)
             self.body.add_module('block%d'%(i+1),block)
         self.img_output_channels = opt.nc_im
-        output_channels = self.img_output_channels + 1  # add 1 more channel for masks of each input image
         self.tail = nn.Sequential(
-            nn.Conv2d(max(N,opt.min_nfc),output_channels,kernel_size=opt.ker_size,stride =1,padding=opt.padd_size),
+            nn.Conv2d(max(N,opt.min_nfc),self.img_output_channels,kernel_size=opt.ker_size,stride =1,padding=opt.padd_size),
             nn.Tanh()
         )
 
@@ -75,19 +74,13 @@ class GeneratorConcatSkip2CleanAdd(nn.Module):
         noise = self.body(noise)
         noise = self.tail(noise)
         output_img = noise[:, 0:self.img_output_channels, :, :]
-        mask = self.mask_activation_layer(noise[:, self.img_output_channels:self.img_output_channels+1, :, :])
 
         ind = int((prev.shape[2]-noise.shape[2])/2)
         prev = prev[:,:,ind:(prev.shape[2]-ind),ind:(prev.shape[3]-ind)]
 
-        mask1 = mask
-        mask2 = 1 - mask1
-
         final_output_img = output_img + prev
-        mask1_output = mask1 * final_output_img
-        mask2_output = mask2 * final_output_img
 
-        return final_output_img, mask1_output, mask2_output
+        return final_output_img
 
 
 class Sign(nn.Module):
