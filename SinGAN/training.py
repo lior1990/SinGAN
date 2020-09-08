@@ -200,8 +200,9 @@ def train_single_scale(netD, netD_mask1, netD_mask2,netG,reals1, reals2, Gs,Zs,i
             errD_real2, D_x2 = discriminator_train_with_real(netD, opt, real2)
 
             # single discriminator for each image
-            errD_mask1_real1, _ = discriminator_train_with_real(netD_mask1, opt, real1)
-            errD_mask2_real2, _ = discriminator_train_with_real(netD_mask2, opt, real2)
+            if opt.enable_mask:
+                errD_mask1_real1, _ = discriminator_train_with_real(netD_mask1, opt, real1)
+                errD_mask2_real2, _ = discriminator_train_with_real(netD_mask2, opt, real2)
 
             # train with fake
             in_s1, noise1, prev1, new_z_prev1 = _prepare_discriminator_train_with_fake_input(Gs, NoiseAmp, Zs, epoch,
