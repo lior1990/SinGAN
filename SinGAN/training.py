@@ -89,8 +89,7 @@ def train(opt,Gs,Zs,reals1, reals2,NoiseAmp):
 
 
 def _generate_fake(netG, noise, prev):
-    fake = netG(noise.detach(), prev)
-    return fake
+    return netG(noise.detach(), prev)
 
 
 def train_single_scale(netD, netD_mask1, netD_mask2,netG,reals1, reals2, Gs,Zs,in_s1, in_s2,NoiseAmp,opt):
@@ -223,14 +222,31 @@ def train_single_scale(netD, netD_mask1, netD_mask2,netG,reals1, reals2, Gs,Zs,i
             # Z1 only:
             mixed_noise1 = functions.merge_noise_vectors(noise1, torch.zeros(noise1.shape, device=opt.device),
                                                opt.noise_vectors_merge_method)
-            fake1 = _generate_fake(netG, mixed_noise1, prev1)
+
+            fake1_output = _generate_fake(netG, mixed_noise1, prev1)
+
+            if opt.enable_mask:
+                fake1, fake1_mask1, fake1_mask2 = fake1_output
+            else:
+                fake1 = fake1_output[0]
+
             D_G_z_1, errD_fake1, gradient_penalty1 = _train_discriminator_with_fake(netD, fake1, opt, real1)
 
             # Z2 only:
             mixed_noise2 = functions.merge_noise_vectors(torch.zeros(noise2.shape, device=opt.device), noise2,
                                                opt.noise_vectors_merge_method)
-            fake2 = _generate_fake(netG, mixed_noise2, prev2)
+
+            fake2_output = _generate_fake(netG, mixed_noise2, prev2)
+            if opt.enable_mask:
+                fake2, fake2_mask1, fake2_mask2 = fake2_output
+            else:
+                fake2 = fake2_output[0]
+
             D_G_z_2, errD_fake2, gradient_penalty2 = _train_discriminator_with_fake(netD, fake2, opt, real2)
+
+            if opt.enable_mask:
+                _, errD_mask1_fake1, _ = _train_discriminator_with_fake(netD_mask1, fake1_mask1, opt, real1)
+                _, errD_mask2_fake2, _ = _train_discriminator_with_fake(netD_mask2, fake2_mask2, opt, real2)
 
             errD_image1 = errD_real1 + errD_fake1 + gradient_penalty1
             errD_image2 = errD_real2 + errD_fake2 + gradient_penalty2
@@ -255,6 +271,12 @@ def train_single_scale(netD, netD_mask1, netD_mask2,netG,reals1, reals2, Gs,Zs,i
             rec_loss1, Z_opt1 = _reconstruction_loss(alpha, netG, opt, z_opt1, z_prev1, real1, NoiseMode.Z1, opt.noise_amp1)
             rec_loss2, Z_opt2 = _reconstruction_loss(alpha, netG, opt, z_opt2, z_prev2, real2, NoiseMode.Z2, opt.noise_amp2)
 
+            if opt.enable_mask:
+                mask_loss_fake1_mask1, D_mask1_fake1_mask1_map = _generator_train_with_fake(fake1_mask1, netD_mask1)
+                mask_loss_fake2_mask1, D_mask1_fake2_mask1_map = _generator_train_with_fake(fake2_mask1, netD_mask1)
+                mask_loss_fake1_mask2, D_mask2_fake1_mask2_map = _generator_train_with_fake(fake1_mask2, netD_mask2)
+                mask_loss_fake2_mask2, D_mask2_fake2_mask2_map = _generator_train_with_fake(fake2_mask2, netD_mask2)
+
             optimizerG.step()
 
         errG_total_loss1_2plot.append(errG_fake1.detach()+rec_loss1)
@@ -277,9 +299,9 @@ def train_single_scale(netD, netD_mask1, netD_mask2,netG,reals1, reals2, Gs,Zs,i
             plt.imsave('%s/fake_sample1.png' %  (opt.outf), functions.convert_image_np(fake1.detach()), vmin=0, vmax=1)
             plt.imsave('%s/fake_sample2.png' % (opt.outf), functions.convert_image_np(fake2.detach()), vmin=0, vmax=1)
             plt.imsave('%s/G(z_opt1).png'    % (opt.outf),
-                       functions.convert_image_np(netG(Z_opt1.detach(), z_prev1).detach()), vmin=0, vmax=1)
+                       functions.convert_image_np(netG(Z_opt1.detach(), z_prev1)[0].detach()), vmin=0, vmax=1)
             plt.imsave('%s/G(z_opt2).png' % (opt.outf),
-                       functions.convert_image_np(netG(Z_opt2.detach(), z_prev2).detach()), vmin=0, vmax=1)
+                       functions.convert_image_np(netG(Z_opt2.detach(), z_prev2)[0].detach()), vmin=0, vmax=1)
 
             # torch.save((mixed_noise1, prev1), '%s/fake1_noise_source.pth' % (opt.outf))
             # torch.save((mixed_noise2, prev2), '%s/fake2_noise_source.pth' % (opt.outf))
@@ -287,6 +309,22 @@ def train_single_scale(netD, netD_mask1, netD_mask2,netG,reals1, reals2, Gs,Zs,i
             # torch.save((Z_opt2, z_prev2), '%s/G(z_opt2)_noise_source.pth' % (opt.outf))
             torch.save(z_opt1, '%s/z_opt1.pth' % (opt.outf))
             torch.save(z_opt2, '%s/z_opt2.pth' % (opt.outf))
+            if epoch == (opt.niter-1) and opt.enable_mask:
+                plt.imsave('%s/fake1_mask1.png' % (opt.outf), functions.convert_image_np(fake1_mask1.detach()), vmin=0,
+                           vmax=1)
+                plt.imsave('%s/fake2_mask1.png' % (opt.outf), functions.convert_image_np(fake2_mask1.detach()), vmin=0,
+                           vmax=1)
+                plt.imsave('%s/fake1_mask2.png' % (opt.outf), functions.convert_image_np(fake1_mask2.detach()), vmin=0,
+                           vmax=1)
+                plt.imsave('%s/fake2_mask2.png' % (opt.outf), functions.convert_image_np(fake2_mask2.detach()), vmin=0,
+                           vmax=1)
+                _imsave_discriminator_map(D_fake1_map, "D_fake1_map", opt)
+                _imsave_discriminator_map(D_fake2_map, "D_fake2_map", opt)
+                _imsave_discriminator_map(D_mask1_fake1_mask1_map, "D_mask1_fake1_mask1_map", opt)
+                _imsave_discriminator_map(D_mask1_fake2_mask1_map, "D_mask1_fake2_mask1_map", opt)
+                _imsave_discriminator_map(D_mask2_fake1_mask2_map, "D_mask2_fake1_mask2_map", opt)
+                _imsave_discriminator_map(D_mask2_fake2_mask2_map, "D_mask2_fake2_mask2_map", opt)
+
 
         for discriminator_scheduler in discriminators_schedulers:
             discriminator_scheduler.step()
@@ -339,7 +377,7 @@ def _reconstruction_loss(alpha, netG, opt, z_opt, z_prev, real, noise_mode: Nois
         else:
             pass
 
-        fake = netG(Z_opt.detach(), z_prev)
+        fake = netG(Z_opt.detach(), z_prev)[0]
 
         rec_loss = alpha * loss(fake, real)
         rec_loss.backward(retain_graph=True)
@@ -461,7 +499,7 @@ def draw_concat(Gs, Zs, reals, NoiseAmp, in_s, mode, m_noise, m_image, opt, nois
                 G_z = G_z[:,:,0:real_curr.shape[2],0:real_curr.shape[3]]
                 G_z = m_image(G_z)
                 z_in = noise_amp*z+G_z
-                G_z = G(z_in.detach(), G_z)
+                G_z = G(z_in.detach(), G_z)[0]
                 G_z = imresize(G_z,1/opt.scale_factor,opt)
                 G_z = G_z[:,:,0:real_next.shape[2],0:real_next.shape[3]]
                 count += 1
@@ -486,7 +524,7 @@ def draw_concat(Gs, Zs, reals, NoiseAmp, in_s, mode, m_noise, m_image, opt, nois
                     raise NotImplementedError
 
                 z_in = noise_amp*Z_opt+G_z
-                G_z = G(z_in.detach(),G_z)
+                G_z = G(z_in.detach(),G_z)[0]
                 G_z = imresize(G_z,1/opt.scale_factor,opt)
                 G_z = G_z[:,:,0:real_next.shape[2],0:real_next.shape[3]]
                 #if count != (len(Gs)-1):

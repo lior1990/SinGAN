@@ -51,23 +51,29 @@ class GeneratorConcatSkip2CleanAdd(nn.Module):
             block = ConvBlock(max(2*N,opt.min_nfc),max(N,opt.min_nfc),opt.ker_size,opt.padd_size,1)
             self.body.add_module('block%d'%(i+1),block)
         self.img_output_channels = opt.nc_im
+        output_channels = self.img_output_channels
+        if opt.enable_mask:
+            output_channels += 1  # for mask
         self.tail = nn.Sequential(
-            nn.Conv2d(max(N,opt.min_nfc),self.img_output_channels,kernel_size=opt.ker_size,stride =1,padding=opt.padd_size),
+            nn.Conv2d(max(N,opt.min_nfc),output_channels,kernel_size=opt.ker_size,stride =1,padding=opt.padd_size),
             nn.Tanh()
         )
 
-        if opt.mask_activation_fn == "sigmoid":
-            self.mask_activation_layer = nn.Sequential(nn.Sigmoid())
-        elif opt.mask_activation_fn == "relu_sign":
-            self.mask_activation_layer = nn.Sequential(nn.ReLU(), Sign())
-        elif opt.mask_activation_fn == "tanh_relu":
-            self.mask_activation_layer = nn.Sequential(nn.Tanh(), nn.ReLU())
-        elif opt.mask_activation_fn == "tanh_sign":
-            self.mask_activation_layer = nn.Sequential(nn.Tanh(), Sign())
-        elif opt.mask_activation_fn == "down_up":
-            self.mask_activation_layer = nn.Sequential(nn.Tanh(), nn.ReLU(), nn.MaxPool2d(opt.ker_size), nn.Upsample(size=img_shape[2:]))
+        if opt.enable_mask:
+            if opt.mask_activation_fn == "sigmoid":
+                self.mask_activation_layer = nn.Sequential(nn.Sigmoid())
+            elif opt.mask_activation_fn == "relu_sign":
+                self.mask_activation_layer = nn.Sequential(nn.ReLU(), Sign())
+            elif opt.mask_activation_fn == "tanh_relu":
+                self.mask_activation_layer = nn.Sequential(nn.Tanh(), nn.ReLU())
+            elif opt.mask_activation_fn == "tanh_sign":
+                self.mask_activation_layer = nn.Sequential(nn.Tanh(), Sign())
+            elif opt.mask_activation_fn == "down_up":
+                self.mask_activation_layer = nn.Sequential(nn.Tanh(), nn.ReLU(), nn.MaxPool2d(opt.ker_size), nn.Upsample(size=img_shape[2:]))
+            else:
+                raise NotImplementedError
         else:
-            raise NotImplementedError
+            self.mask_activation_layer = None
 
     def forward(self, noise, prev):
         noise = self.head(noise)
@@ -80,7 +86,15 @@ class GeneratorConcatSkip2CleanAdd(nn.Module):
 
         final_output_img = output_img + prev
 
-        return final_output_img
+        if self.mask_activation_layer is not None:
+            mask = self.mask_activation_layer(noise[:, self.img_output_channels:self.img_output_channels+1, :, :])
+            mask1 = mask
+            mask2 = 1 - mask1
+            mask1_output = mask1 * final_output_img
+            mask2_output = mask2 * final_output_img
+            return final_output_img, mask1_output, mask2_output
+        else:
+            return (final_output_img,)
 
 
 class Sign(nn.Module):

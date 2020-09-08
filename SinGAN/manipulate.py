@@ -104,7 +104,7 @@ def SinGAN_generate(Gs,Zs,reals1, reals2,NoiseAmp,opt,in_s1=None, in_s2=None, sc
 
             noise_amp = noise_amp1 if noise_modes[i] == NoiseMode.Z1 else noise_amp2
             z_in = noise_amp*(z_curr)+I_prev
-            I_curr = G(z_in.detach(),I_prev)
+            I_curr = G(z_in.detach(),I_prev)[0]
 
             if n == len(reals1)-1:
                 if opt.mode == 'train':

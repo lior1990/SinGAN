@@ -76,4 +76,6 @@ def get_arguments():
     parser.add_argument("--mask_activation_fn", type=str, default="sigmoid",
                         help="activation function to apply on the Generator's masks. "
                              "options are: sigmoid, relu_sign, tanh_relu, down_up or tanh_sign")
+    parser.add_argument("--enable_mask", type=bool, default=True,
+                        help="enable mask as extra output of the generator")
     return parser
