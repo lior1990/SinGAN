@@ -185,11 +185,13 @@ def train_single_scale(netD, netD_mask1, netD_mask2,netG,reals1, reals2, Gs,Zs,i
 
         ############################
         # (1) Update D networks:
-        # - maximize D1(x1)
-        # - maximize D2(x2)
-        # - maximize D1(G(z1||0))
-        # - maximize D2(G(0||z2))
-        # - maximize D#(G(z1||z2)): only if mixed_imgs_training is true
+        # - netD: train with real on 2 input images (real1, real2)
+        # - netD: train with fake on 2 fake images from different noise source (NoiseMode.Z1, NoiseMode.Z2)
+        # if opt.enable_mask is ON, then:
+        # - netD_mask1: train with real on real1
+        # - netD_mask2: train with real on real2
+        # - netD_mask1: train with fake on the generated fake image with mask1 applied on it
+        # - netD_mask2: train with fake on the generated fake image with mask2 applied on it
         ###########################
         for j in range(opt.Dsteps):
             # train with real
@@ -260,9 +262,11 @@ def train_single_scale(netD, netD_mask1, netD_mask2,netG,reals1, reals2, Gs,Zs,i
 
         ############################
         # (2) Update G network:
-        # - maximize D1(G(z1||0))
-        # - maximize D2(G(0||z2))
-        # - maximize D#(G(z1||z2)): only if mixed_imgs_training is true
+        # - netG: train with fake on 2 fake images from different noise source (NoiseMode.Z1, NoiseMode.Z2) against netD
+        # - netG: reconstruction loss against 2 real images
+        # if opt.enable_mask is ON, then:
+        # - netD_mask1: train with fake on the generated fake image with mask1 applied on it against netD_mask1
+        # - netD_mask2: train with fake on the generated fake image with mask2 applied on it against netD_mask2
         ###########################
 
         for j in range(opt.Gsteps):
@@ -413,7 +417,7 @@ def _prepare_discriminator_train_with_fake_input(Gs, NoiseAmp, Zs, epoch, in_s, 
             elif noise_mode == NoiseMode.Z2:
                 opt.noise_amp2 = 1
             else:
-                pass  # todo: implement
+                pass
         else:
             prev = draw_concat(Gs, Zs, reals, NoiseAmp, in_s, 'rand', m_noise, m_image, opt, noise_mode)
             prev = m_image(prev)
@@ -425,7 +429,7 @@ def _prepare_discriminator_train_with_fake_input(Gs, NoiseAmp, Zs, epoch, in_s, 
             elif noise_mode == NoiseMode.Z2:
                 opt.noise_amp2 = opt.noise_amp_init * RMSE
             else:
-                pass  # todo: implement
+                pass
             z_prev = m_image(z_prev)
     else:
         prev = draw_concat(Gs, Zs, reals, NoiseAmp, in_s, 'rand', m_noise, m_image, opt, noise_mode)
@@ -439,7 +443,7 @@ def _prepare_discriminator_train_with_fake_input(Gs, NoiseAmp, Zs, epoch, in_s, 
         elif noise_mode == NoiseMode.Z2:
             noise_amp = opt.noise_amp2
         else:
-            noise_amp = 1  # todo: implement
+            noise_amp = 1
         noise = noise_amp * noise_ + prev
     return in_s, noise, prev, z_prev
 
