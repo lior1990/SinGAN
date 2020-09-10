@@ -37,35 +37,6 @@ def SinGAN_generate(Gs,Zs,reals1, reals2,NoiseAmp,opt,in_s1=None, in_s2=None, sc
 
     noise_modes = [random_noise_mode() for _ in range(num_samples)]
 
-    #
-    if opt.mode == 'train':
-        dir2save = '%s/RandomSamples/%s/gen_start_scale=%d' % (opt.out, opt.exp_name, gen_start_scale)
-        if not os.path.exists(dir2save):
-            os.makedirs(dir2save)
-    else:
-        dir2save = functions.generate_dir2save(opt)
-
-    #
-    # # reconstruct zopt1 and zopt2
-    # in_s = torch.full(reals1[0].shape, 0, device=opt.device)
-    # pad1 = ((opt.ker_size - 1) * opt.num_layer) / 2
-    # m = nn.ZeroPad2d(int(pad1))
-    # z_prev2 = draw_concat(Gs, Zs, reals2, NoiseAmp, in_s, 'rec', m, m, opt, NoiseMode.Z2)
-    # res2 = Gs[-1](z_prev2, z_prev2)[0]
-    # plt.imsave(f'%s/2.png' % (dir2save), functions.convert_image_np(res2.detach()), vmin=0, vmax=1)
-    #
-    # in_s = torch.full(reals2[0].shape, 0, device=opt.device)
-    # pad1 = ((opt.ker_size - 1) * opt.num_layer) / 2
-    # m = nn.ZeroPad2d(int(pad1))
-    # z_prev1 = draw_concat(Gs, Zs, reals1, NoiseAmp, in_s, 'rec', m, m, opt, NoiseMode.Z1)
-    # z_in1 = z_prev1
-    # res1 = Gs[-1](z_in1.detach(), z_prev1)[0]
-    # plt.imsave(f'%s/1.png' % (dir2save), functions.convert_image_np(res1.detach()), vmin=0, vmax=1)
-
-    ###
-
-    in_s = torch.full(reals1[0].shape, 0, device=opt.device)
-
     for G,(Z_opt1, Z_opt2),(noise_amp1, noise_amp2) in zip(Gs,Zs,NoiseAmp):
         pad1 = ((opt.ker_size-1)*opt.num_layer)/2
         m = nn.ZeroPad2d(int(pad1))

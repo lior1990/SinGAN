@@ -17,10 +17,10 @@ from SinGAN.my_functions import create_img_over_background, create_background
 logger = logging.getLogger()
 
 
-def get_reals(reals, opt, image_name, regular_resize=False):
+def get_reals(reals, opt, image_name):
     real_ = functions.read_image(opt, image_name)
     real = imresize(real_,opt.scale1,opt)
-    reals = functions.creat_reals_pyramid(real,reals,opt, regular_resize)
+    reals = functions.creat_reals_pyramid(real,reals,opt)
     return reals
 
 
@@ -408,7 +408,7 @@ def _prepare_discriminator_train_with_fake_input(Gs, NoiseAmp, Zs, epoch, in_s, 
             prev = m_image(prev)
             z_prev = torch.full([1, opt.nc_z, opt.nzx, opt.nzy], 0, device=opt.device)
             z_prev = m_noise(z_prev)
-            if noise_mode in [NoiseMode.Z1, NoiseMode.BACKGROUND]:
+            if noise_mode == NoiseMode.Z1:
                 opt.noise_amp1 = 1
             elif noise_mode == NoiseMode.Z2:
                 opt.noise_amp2 = 1
@@ -434,7 +434,7 @@ def _prepare_discriminator_train_with_fake_input(Gs, NoiseAmp, Zs, epoch, in_s, 
     if is_first_scale:
         noise = noise_
     else:
-        if noise_mode in [NoiseMode.Z1, NoiseMode.BACKGROUND]:
+        if noise_mode == NoiseMode.Z1:
             noise_amp = opt.noise_amp1
         elif noise_mode == NoiseMode.Z2:
             noise_amp = opt.noise_amp2
@@ -489,13 +489,10 @@ def draw_concat(Gs, Zs, reals, NoiseAmp, in_s, mode, m_noise, m_image, opt, nois
                 elif noise_mode == NoiseMode.MIXED:
                     z1 = _create_noise_for_draw_concat(opt, count, pad_noise, m_noise, Z_opt1, noise_mode)
                     z2 = _create_noise_for_draw_concat(opt, count, pad_noise, m_noise, Z_opt2, noise_mode)
-                elif noise_mode == NoiseMode.BACKGROUND:
-                    z = _create_noise_for_draw_concat(opt, count, pad_noise, m_noise, Z_opt_bg, noise_mode)
                 else:
                     raise NotImplementedError
 
-                if noise_mode != NoiseMode.BACKGROUND:
-                    z = functions.merge_noise_vectors(z1, z2, opt.noise_vectors_merge_method)
+                z = functions.merge_noise_vectors(z1, z2, opt.noise_vectors_merge_method)
 
                 G_z = G_z[:,:,0:real_curr.shape[2],0:real_curr.shape[3]]
                 G_z = m_image(G_z)

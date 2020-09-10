@@ -45,16 +45,6 @@ def get_arguments():
     parser.add_argument('--alpha',type=float, help='reconstruction loss weight',default=10)
 
     # New parameters:
-    parser.add_argument("--mixed_imgs_training", type=bool, default=True,
-                        help="Boolean indicates whether to train on mixed image")
-    # we might want to give different regularization loss for one image over the other,
-    # if one has more strong characteristics we want to preserve (like background)
-    parser.add_argument("--D_img1_regularization_loss", type=float, default=2,
-                        help="When training with 2 images:"
-                             "regularization loss for the discriminator of the first image")
-    parser.add_argument("--D_img2_regularization_loss", type=float, default=1,
-                        help="When training with 2 images:"
-                             "regularization loss for the discriminator of the second image")
     parser.add_argument("--noise_vectors_merge_method", type=str, default="cat",
                         help="Determine how to treat the different noise vectors (how to merge them to a single vector)"
                         )

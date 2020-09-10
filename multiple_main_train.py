@@ -11,7 +11,6 @@ CONFIGURATIONS = {
                   }
 DEFAULT_PARAMS = {
     "scale_factor": 0.8,
-    "mixed_imgs_training": False,
     "noise_vectors_merge_method": "sum",
     "gaussian_noise_z_distance": 0,
     "alpha": 40,

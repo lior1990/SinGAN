@@ -1,3 +1,7 @@
+"""
+New code for replace_background feature
+"""
+
 import cv2
 import numpy as np
 from skimage import filters
@@ -44,5 +48,3 @@ def create_img_over_background(img: "np.ndarray", background_img: "np.ndarray") 
 
     # Combine the images
     return np.bitwise_or(bg, img_fg)
-
-

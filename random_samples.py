@@ -48,20 +48,4 @@ if __name__ == '__main__':
             functions.adjust_scales2image(real1, opt)
             functions.adjust_scales2image(real2, opt)
             Gs, Zs, reals1, reals2, NoiseAmp = functions.load_trained_pyramid(opt)
-            in_s1 = functions.generate_in2coarsest(reals1,1,1,opt)
-            in_s2 = functions.generate_in2coarsest(reals2, 1, 1, opt)
             SinGAN_generate(Gs, Zs, reals1, reals2, NoiseAmp, opt, gen_start_scale=opt.gen_start_scale)
-
-        elif opt.mode == 'random_samples_arbitrary_sizes':
-            real1 = functions.read_image(opt, opt.input_name1)
-            real2 = functions.read_image(opt, opt.input_name2)
-            functions.adjust_scales2image(real1, opt)
-            functions.adjust_scales2image(real2, opt)
-            Gs, Zs, reals1, reals2, NoiseAmp = functions.load_trained_pyramid(opt)
-            in_s = functions.generate_in2coarsest(reals,opt.scale_v,opt.scale_h,opt)
-            SinGAN_generate(Gs, Zs, reals1, reals2, NoiseAmp, opt, in_s, scale_v=opt.scale_v, scale_h=opt.scale_h)
-
-
-
-
-

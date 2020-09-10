@@ -25,7 +25,6 @@ class NoiseMode(Enum):
     Z1 = 1
     Z2 = 2
     MIXED = 3
-    BACKGROUND = 4
 
 
 # custom weights initialization called on netG and netD
@@ -195,12 +194,10 @@ def read_image_dir(dir,opt):
     x = x[:,0:3,:,:]
     return x
 
-def np2torch(x,opt, is_bool=False):
+def np2torch(x,opt):
     if opt.nc_im == 3:
         x = x[:,:,:,None]
-        x = x.transpose((3, 2, 0, 1))
-        if not is_bool:
-            x = x / 255
+        x = x.transpose((3, 2, 0, 1))/255
     else:
         x = color.rgb2gray(x)
         x = x[:,:,None,None]
@@ -210,7 +207,7 @@ def np2torch(x,opt, is_bool=False):
         x = move_to_gpu(x)
     x = x.type(torch.cuda.FloatTensor) if not(opt.not_cuda) else x.type(torch.FloatTensor)
     #x = x.type(torch.FloatTensor)
-    x = x if is_bool else norm(x)
+    x = norm(x)
     return x
 
 def torch2uint8(x):
@@ -247,19 +244,11 @@ def adjust_scales2image(real_,opt):
     opt.stop_scale = opt.num_scales - scale2stop
     return real
 
-def creat_reals_pyramid(real,reals,opt, regular_resize):
+def creat_reals_pyramid(real,reals,opt):
     real = real[:,0:3,:,:]
     for i in range(0,opt.stop_scale+1,1):
         scale = math.pow(opt.scale_factor,opt.stop_scale-i)
-        if regular_resize:
-            curr_real = torch2uint8(real)
-            curr_real = img_as_bool(resize(curr_real,
-                               (np.ceil(curr_real.shape[0]*scale), np.ceil(curr_real.shape[1]*scale), curr_real.shape[2]),
-                               ))
-
-            curr_real = np2torch(curr_real, opt, is_bool=True)
-        else:
-            curr_real = imresize(real,scale,opt)
+        curr_real = imresize(real,scale,opt)
         reals.append(curr_real)
     return reals
 
