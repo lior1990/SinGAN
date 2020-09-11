@@ -40,7 +40,7 @@ class WDiscriminator(nn.Module):
 
 
 class GeneratorConcatSkip2CleanAdd(nn.Module):
-    def __init__(self, opt):
+    def __init__(self, opt, img_shape):
         super(GeneratorConcatSkip2CleanAdd, self).__init__()
         self.is_cuda = torch.cuda.is_available()
         N = opt.nfc
@@ -50,14 +50,54 @@ class GeneratorConcatSkip2CleanAdd(nn.Module):
             N = int(opt.nfc/pow(2,(i+1)))
             block = ConvBlock(max(2*N,opt.min_nfc),max(N,opt.min_nfc),opt.ker_size,opt.padd_size,1)
             self.body.add_module('block%d'%(i+1),block)
+        self.img_output_channels = opt.nc_im
+        output_channels = self.img_output_channels
+        if opt.enable_mask:
+            output_channels += 1  # for mask
         self.tail = nn.Sequential(
-            nn.Conv2d(max(N,opt.min_nfc),opt.nc_im,kernel_size=opt.ker_size,stride =1,padding=opt.padd_size),
+            nn.Conv2d(max(N,opt.min_nfc),output_channels,kernel_size=opt.ker_size,stride =1,padding=opt.padd_size),
             nn.Tanh()
         )
-    def forward(self,x,y):
-        x = self.head(x)
-        x = self.body(x)
-        x = self.tail(x)
-        ind = int((y.shape[2]-x.shape[2])/2)
-        y = y[:,:,ind:(y.shape[2]-ind),ind:(y.shape[3]-ind)]
-        return x+y
+
+        if opt.enable_mask:
+            if opt.mask_activation_fn == "sigmoid":
+                self.mask_activation_layer = nn.Sequential(nn.Sigmoid())
+            elif opt.mask_activation_fn == "relu_sign":
+                self.mask_activation_layer = nn.Sequential(nn.ReLU(), Sign())
+            elif opt.mask_activation_fn == "tanh_relu":
+                self.mask_activation_layer = nn.Sequential(nn.Tanh(), nn.ReLU())
+            elif opt.mask_activation_fn == "tanh_sign":
+                self.mask_activation_layer = nn.Sequential(nn.Tanh(), Sign())
+            elif opt.mask_activation_fn == "down_up":
+                self.mask_activation_layer = nn.Sequential(nn.Tanh(), nn.ReLU(), nn.MaxPool2d(opt.ker_size), nn.Upsample(size=img_shape[2:]))
+            else:
+                raise NotImplementedError
+        else:
+            self.mask_activation_layer = None
+
+    def forward(self, noise, prev):
+        noise = self.head(noise)
+        noise = self.body(noise)
+        noise = self.tail(noise)
+        output_img = noise[:, 0:self.img_output_channels, :, :]
+
+        ind = int((prev.shape[2]-noise.shape[2])/2)
+        prev = prev[:,:,ind:(prev.shape[2]-ind),ind:(prev.shape[3]-ind)]
+
+        final_output_img = output_img + prev
+
+        if self.mask_activation_layer is not None:
+            mask = self.mask_activation_layer(noise[:, self.img_output_channels:self.img_output_channels+1, :, :])
+            mask1 = mask
+            mask2 = 1 - mask1
+            mask1_output = mask1 * final_output_img
+            mask2_output = mask2 * final_output_img
+            return final_output_img, mask1_output, mask2_output
+        else:
+            return (final_output_img,)
+
+
+class Sign(nn.Module):
+    def forward(self, x):
+        return torch.sign(x)
+

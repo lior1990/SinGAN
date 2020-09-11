@@ -6,10 +6,14 @@ def get_arguments():
     #parser.add_argument('--mode', help='task to be done', default='train')
     #workspace:
     parser.add_argument('--not_cuda', action='store_true', help='disables cuda', default=0)
+    parser.add_argument('--cuda_id', help='the cuda id of the GPU to train on',default='0')
+
     
     #load, input, save configurations:
     parser.add_argument('--netG', default='', help="path to netG (to continue training)")
     parser.add_argument('--netD', default='', help="path to netD (to continue training)")
+    parser.add_argument('--netD_mask1', default='', help="path to netD (to continue training)")
+    parser.add_argument('--netD_mask2', default='', help="path to netD (to continue training)")
     parser.add_argument('--manualSeed', type=int, help='manual seed')
     parser.add_argument('--nc_z',type=int,help='noise # channels',default=3)
     parser.add_argument('--nc_im',type=int,help='image # channels',default=3)
@@ -40,5 +44,28 @@ def get_arguments():
     parser.add_argument('--lambda_grad',type=float, help='gradient penelty weight',default=0.1)
     parser.add_argument('--alpha',type=float, help='reconstruction loss weight',default=10)
 
-    
+    # New parameters:
+    parser.add_argument("--noise_vectors_merge_method", type=str, default="sum",
+                        help="Determine how to treat the different noise vectors (how to merge them to a single vector)"
+                        )
+    parser.add_argument("--exp_name", type=str, default="default_exp",
+                        help="Unique experiment name"
+                        )
+    parser.add_argument("--gaussian_noise_z_distance", type=int, default=0,
+                        help="Distance between z1 and z2 gaussians")
+    parser.add_argument("--replace_background", type=bool, default=False,
+                        help="Use image1 as primary image and replace image2's background")
+    parser.add_argument("--weight_decay_d", type=float, default=0,
+                        help="weight decay for D discriminator")
+    parser.add_argument("--weight_decay_d_mask1", type=float, default=4e-3,
+                        help="weight decay for D mask1 discriminator")
+    parser.add_argument("--weight_decay_d_mask2", type=float, default=4e-3,
+                        help="weight decay for D mask2 discriminator")
+    parser.add_argument("--cyclic_lr", type=bool, default=False,
+                        help="use cyclic learning rate scheduler")
+    parser.add_argument("--mask_activation_fn", type=str, default="sigmoid",
+                        help="activation function to apply on the Generator's masks. "
+                             "options are: sigmoid, relu_sign, tanh_relu, down_up or tanh_sign")
+    parser.add_argument("--enable_mask", type=bool, default=True,
+                        help="enable mask as extra output of the generator")
     return parser

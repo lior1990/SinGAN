@@ -1,3 +1,6 @@
+from enum import Enum
+from typing import List, Optional
+
 import torch
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
@@ -7,19 +10,25 @@ import scipy.io as sio
 import math
 from skimage import io as img
 from skimage import color, morphology, filters
+from skimage.transform import resize
+from skimage import img_as_bool
 #from skimage import morphology
 #from skimage import filters
 from SinGAN.imresize import imresize
 import os
 import random
 from sklearn.cluster import KMeans
+from math import floor
+
+
+class NoiseMode(Enum):
+    Z1 = 1
+    Z2 = 2
+    MIXED = 3
 
 
 # custom weights initialization called on netG and netD
 
-def read_image(opt):
-    x = img.imread('%s%s' % (opt.input_img,opt.ref_image))
-    return np2torch(x)
 
 def denorm(x):
     out = (x + 1) / 2
@@ -74,9 +83,34 @@ def convert_image_np_2d(inp):
     # inp = std*
     return inp
 
-def generate_noise(size,num_samp=1,device='cuda',type='gaussian', scale=1):
+
+def generate_noise(size,num_samp=1,device='cuda',type='gaussian', scale=1, noise_mode: Optional[NoiseMode] =None,
+                   gaussian_noise_z_distance=0
+                   ):
     if type == 'gaussian':
-        noise = torch.randn(num_samp, size[0], round(size[1]/scale), round(size[2]/scale), device=device)
+        if noise_mode:
+            total_size = size[0] * round(size[1]/scale) * round(size[2]/scale)
+            single_noise_size = floor(total_size/3)
+            common_noise_size = total_size - 2 * single_noise_size
+            assert common_noise_size > 0
+
+            common_noise = torch.randn(num_samp, common_noise_size, device=device)
+            zero_noise = torch.zeros(num_samp, single_noise_size, device=device)
+            single_noise = torch.randn(num_samp, single_noise_size, device=device)
+
+            if noise_mode == NoiseMode.Z1:
+                common_noise += gaussian_noise_z_distance
+                noise = torch.cat([single_noise, common_noise, zero_noise], dim=1)
+            elif noise_mode == NoiseMode.Z2:
+                common_noise -= gaussian_noise_z_distance
+                noise = torch.cat([zero_noise, common_noise, single_noise], dim=1)
+            else:
+                raise NotImplementedError
+            noise = noise.reshape(num_samp, size[0], round(size[1]/scale), round(size[2]/scale))
+
+        else:
+            noise = torch.randn(num_samp, size[0], round(size[1] / scale), round(size[2] / scale), device=device)
+
         noise = upsampling(noise,size[1], size[2])
     if type =='gaussian_mixture':
         noise1 = torch.randn(num_samp, size[0], size[1], size[2], device=device)+5
@@ -86,15 +120,17 @@ def generate_noise(size,num_samp=1,device='cuda',type='gaussian', scale=1):
         noise = torch.randn(num_samp, size[0], size[1], size[2], device=device)
     return noise
 
-def plot_learning_curves(G_loss,D_loss,epochs,label1,label2,name):
+
+def plot_learning_curves(plot_name: str, epochs: int, values_list: List[list], labels_list: List[str], base_dir: str):
     fig,ax = plt.subplots(1)
     n = np.arange(0,epochs)
-    plt.plot(n,G_loss,n,D_loss)
+    for values in values_list:
+        plt.plot(n, values)
     #plt.title('loss')
     #plt.ylabel('loss')
     plt.xlabel('epochs')
-    plt.legend([label1,label2],loc='upper right')
-    plt.savefig('%s.png' % name)
+    plt.legend(labels_list,loc='upper right')
+    plt.savefig(os.path.join(base_dir, f'{plot_name}.png'))
     plt.close(fig)
 
 def plot_learning_curve(loss,epochs,name):
@@ -146,8 +182,8 @@ def calc_gradient_penalty(netD, real_data, fake_data, LAMBDA, device):
     gradient_penalty = ((gradients.norm(2, dim=1) - 1) ** 2).mean() * LAMBDA
     return gradient_penalty
 
-def read_image(opt):
-    x = img.imread('%s/%s' % (opt.input_dir,opt.input_name))
+def read_image(opt, image_name):
+    x = img.imread('%s/%s' % (opt.input_dir,image_name))
     x = np2torch(x,opt)
     x = x[:,0:3,:,:]
     return x
@@ -187,10 +223,13 @@ def read_image2np(opt):
     x = x[:, :, 0:3]
     return x
 
-def save_networks(netG,netD,z,opt):
+def save_networks(netG,netD, netD_mask1, netD_mask2,z1, z2, opt):
     torch.save(netG.state_dict(), '%s/netG.pth' % (opt.outf))
     torch.save(netD.state_dict(), '%s/netD.pth' % (opt.outf))
-    torch.save(z, '%s/z_opt.pth' % (opt.outf))
+    torch.save(netD_mask1.state_dict(), '%s/netD_mask1.pth' % (opt.outf))
+    torch.save(netD_mask2.state_dict(), '%s/netD_mask2.pth' % (opt.outf))
+    torch.save(z1, '%s/z_opt1.pth' % (opt.outf))
+    torch.save(z2, '%s/z_opt2.pth' % (opt.outf))
 
 def adjust_scales2image(real_,opt):
     #opt.num_scales = int((math.log(math.pow(opt.min_size / (real_.shape[2]), 1), opt.scale_factor_init))) + 1
@@ -202,19 +241,6 @@ def adjust_scales2image(real_,opt):
     #opt.scale_factor = math.pow(opt.min_size / (real.shape[2]), 1 / (opt.stop_scale))
     opt.scale_factor = math.pow(opt.min_size/(min(real.shape[2],real.shape[3])),1/(opt.stop_scale))
     scale2stop = math.ceil(math.log(min([opt.max_size, max([real_.shape[2], real_.shape[3]])]) / max([real_.shape[2], real_.shape[3]]),opt.scale_factor_init))
-    opt.stop_scale = opt.num_scales - scale2stop
-    return real
-
-def adjust_scales2image_SR(real_,opt):
-    opt.min_size = 18
-    opt.num_scales = int((math.log(opt.min_size / min(real_.shape[2], real_.shape[3]), opt.scale_factor_init))) + 1
-    scale2stop = int(math.log(min(opt.max_size , max(real_.shape[2], real_.shape[3])) / max(real_.shape[0], real_.shape[3]), opt.scale_factor_init))
-    opt.stop_scale = opt.num_scales - scale2stop
-    opt.scale1 = min(opt.max_size / max([real_.shape[2], real_.shape[3]]), 1)  # min(250/max([real_.shape[0],real_.shape[1]]),1)
-    real = imresize(real_, opt.scale1, opt)
-    #opt.scale_factor = math.pow(opt.min_size / (real.shape[2]), 1 / (opt.stop_scale))
-    opt.scale_factor = math.pow(opt.min_size/(min(real.shape[2],real.shape[3])),1/(opt.stop_scale))
-    scale2stop = int(math.log(min(opt.max_size, max(real_.shape[2], real_.shape[3])) / max(real_.shape[0], real_.shape[3]), opt.scale_factor_init))
     opt.stop_scale = opt.num_scales - scale2stop
     return real
 
@@ -235,14 +261,15 @@ def load_trained_pyramid(opt, mode_='train'):
         opt.mode = mode
     dir = generate_dir2save(opt)
     if(os.path.exists(dir)):
-        Gs = torch.load('%s/Gs.pth' % dir)
-        Zs = torch.load('%s/Zs.pth' % dir)
-        reals = torch.load('%s/reals.pth' % dir)
-        NoiseAmp = torch.load('%s/NoiseAmp.pth' % dir)
+        Gs = torch.load('%s/Gs.pth' % dir, map_location=opt.device)
+        Zs = torch.load('%s/Zs.pth' % dir, map_location=opt.device)
+        reals1 = torch.load('%s/reals1.pth' % dir, map_location=opt.device)
+        reals2 = torch.load('%s/reals2.pth' % dir, map_location=opt.device)
+        NoiseAmp = torch.load('%s/NoiseAmp.pth' % dir, map_location=opt.device)
     else:
-        print('no appropriate trained model is exist, please train first')
+        print(f'no appropriate trained model is exist, please train first {dir}')
     opt.mode = mode
-    return Gs,Zs,reals,NoiseAmp
+    return Gs,Zs,reals1, reals2,NoiseAmp
 
 def generate_in2coarsest(reals,scale_v,scale_h,opt):
     real = reals[opt.gen_start_scale]
@@ -255,16 +282,19 @@ def generate_in2coarsest(reals,scale_v,scale_h,opt):
 
 def generate_dir2save(opt):
     dir2save = None
+    dir_name = f"{opt.input_name1[:-4]}_{opt.input_name2[:-4]}"
+
     if (opt.mode == 'train') | (opt.mode == 'SR_train'):
-        dir2save = 'TrainedModels/%s/scale_factor=%f,alpha=%d' % (opt.input_name[:-4], opt.scale_factor_init,opt.alpha)
+        alpha = int(opt.alpha) if int(opt.alpha) == float(opt.alpha) else opt.alpha
+        dir2save = os.path.join("TrainedModels", dir_name, f"scale_factor={opt.scale_factor_init},alpha={alpha}", opt.exp_name)
     elif (opt.mode == 'animation_train') :
         dir2save = 'TrainedModels/%s/scale_factor=%f_noise_padding' % (opt.input_name[:-4], opt.scale_factor_init)
     elif (opt.mode == 'paint_train') :
         dir2save = 'TrainedModels/%s/scale_factor=%f_paint/start_scale=%d' % (opt.input_name[:-4], opt.scale_factor_init,opt.paint_start_scale)
     elif opt.mode == 'random_samples':
-        dir2save = '%s/RandomSamples/%s/gen_start_scale=%d' % (opt.out,opt.input_name[:-4], opt.gen_start_scale)
+        dir2save = os.path.join(opt.out, "RandomSamples", dir_name, f"gen_start_scale={opt.gen_start_scale}", opt.exp_name)
     elif opt.mode == 'random_samples_arbitrary_sizes':
-        dir2save = '%s/RandomSamples_ArbitrerySizes/%s/scale_v=%f_scale_h=%f' % (opt.out,opt.input_name[:-4], opt.scale_v, opt.scale_h)
+        dir2save = '%s/RandomSamples_ArbitrerySizes/%s/scale_v=%f_scale_h=%f' % (opt.out,dir_name, opt.scale_v, opt.scale_h)
     elif opt.mode == 'animation':
         dir2save = '%s/Animation/%s' % (opt.out, opt.input_name[:-4])
     elif opt.mode == 'SR':
@@ -281,13 +311,15 @@ def generate_dir2save(opt):
 
 def post_config(opt):
     # init fixed parameters
+    os.environ["CUDA_VISIBLE_DEVICES"] = str(opt.cuda_id)
     opt.device = torch.device("cpu" if opt.not_cuda else "cuda:0")
     opt.niter_init = opt.niter
     opt.noise_amp_init = opt.noise_amp
     opt.nfc_init = opt.nfc
     opt.min_nfc_init = opt.min_nfc
     opt.scale_factor_init = opt.scale_factor
-    opt.out_ = 'TrainedModels/%s/scale_factor=%f/' % (opt.input_name[:-4], opt.scale_factor)
+    dir_name = f"{opt.input_name1[:-4]}_{opt.input_name2[:-4]}"
+    opt.out_ = 'TrainedModels/%s/scale_factor=%f/' % (dir_name, opt.scale_factor)
     if opt.mode == 'SR':
         opt.alpha = 100
 
@@ -354,3 +386,11 @@ def dilate_mask(mask,opt):
     return mask
 
 
+def merge_noise_vectors(noise_vector1, noise_vector2, noise_vectors_merge_method):
+    # merge the noise vectors in the some consist way - concatenate according to sum dimension/sum/other
+    if noise_vectors_merge_method == "cat":
+        return torch.cat((noise_vector1, noise_vector2))
+    elif noise_vectors_merge_method == "sum":
+        return noise_vector1 + noise_vector2
+    else:
+        raise NotImplementedError
