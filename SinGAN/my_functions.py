@@ -8,6 +8,7 @@ from skimage import filters
 from skimage import img_as_ubyte
 from skimage.color import rgb2gray
 from skimage.restoration import inpaint
+from sklearn.cluster import KMeans
 
 
 def create_mask(img: "np.ndarray") -> "np.ndarray":
@@ -48,3 +49,14 @@ def create_img_over_background(img: "np.ndarray", background_img: "np.ndarray") 
 
     # Combine the images
     return np.bitwise_or(bg, img_fg)
+
+
+def create_clustered_image(img: "np.ndarray", n_clusters: int) -> "np.ndarray":
+    image_2d = img.reshape(img.shape[0] * img.shape[1], img.shape[2])
+    # Use KMeans clustering algorithm from sklearn.cluster to cluster pixels in image
+    # tweak the cluster size and see what happens to the Output
+    kmeans = KMeans(n_clusters).fit(image_2d)
+    clustered_img_2d = kmeans.cluster_centers_[kmeans.labels_]
+    # Reshape back the image from 2D to 3D image
+    clustered_img_3d = clustered_img_2d.reshape(img.shape[0], img.shape[1], img.shape[2])
+    return clustered_img_3d

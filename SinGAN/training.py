@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 
 from SinGAN.functions import NoiseMode
 from SinGAN.imresize import imresize
-from SinGAN.my_functions import create_img_over_background, create_background
+from SinGAN.my_functions import create_img_over_background, create_background, create_clustered_image
 
 logger = logging.getLogger()
 
@@ -106,6 +106,23 @@ def train_single_scale(netD, netD_mask1, netD_mask2,netG,reals1, reals2, Gs,Zs,i
 
         real2 = functions.np2torch(real2, opt)
 
+    if opt.replace_clustered:
+        n_clusters = len(Gs) + 2  # minimum two clusters
+        # real1
+        real1_clustered = create_clustered_image(functions.convert_image_np(real1), n_clusters)
+        plt.imsave('%s/real1_clustered.png' % (opt.outf), real1_clustered, vmin=0, vmax=1)
+        real1_clustered = functions.np2torch(real1_clustered, opt)
+        # real2
+        real2_clustered = create_clustered_image(functions.convert_image_np(real2), n_clusters)
+        plt.imsave('%s/real2_clustered.png' % (opt.outf), real2_clustered, vmin=0, vmax=1)
+        real2_clustered = functions.np2torch(real2_clustered, opt)
+
+        real1_orig = real1
+        real2_orig = real2
+
+        real1 = real1_clustered
+        real2 = real2_clustered
+
     # assumption: the images are the same size
     opt.nzx = real1.shape[2]#+(opt.ker_size-1)*(opt.num_layer)
     opt.nzy = real1.shape[3]#+(opt.ker_size-1)*(opt.num_layer)
@@ -191,11 +208,18 @@ def train_single_scale(netD, netD_mask1, netD_mask2,netG,reals1, reals2, Gs,Zs,i
             for discriminator in discriminators:
                 discriminator.zero_grad()
 
+            if opt.replace_clustered and opt.extra_clustered:
+                discriminator_train_with_real(netD, opt, real1_orig)
+                discriminator_train_with_real(netD, opt, real2_orig)
             errD_real1, D_x1 = discriminator_train_with_real(netD, opt, real1)
             errD_real2, D_x2 = discriminator_train_with_real(netD, opt, real2)
 
             # single discriminator for each image
             if opt.enable_mask:
+                if opt.replace_clustered and opt.extra_clustered:
+                    discriminator_train_with_real(netD, opt, real1_orig)
+                    discriminator_train_with_real(netD, opt, real2_orig)
+
                 errD_mask1_real1, _ = discriminator_train_with_real(netD_mask1, opt, real1)
                 errD_mask2_real2, _ = discriminator_train_with_real(netD_mask2, opt, real2)
 
