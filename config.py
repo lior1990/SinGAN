@@ -68,8 +68,6 @@ def get_arguments():
                              "options are: sigmoid, relu_sign, tanh_relu, down_up or tanh_sign")
     parser.add_argument("--enable_mask", type=bool, default=True,
                         help="enable mask as extra output of the generator")
-    parser.add_argument("--replace_clustered", action='store_true', default=False,
-                        help="replace real with clustered version")
     parser.add_argument("--extra_clustered", action='store_true', default=False,
                         help="train with clustered and with real")
     parser.add_argument("--add_batch_norm", action='store_true', default=False,
